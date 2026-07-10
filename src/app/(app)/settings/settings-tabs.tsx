@@ -1,5 +1,7 @@
 "use client";
 
+import { Palette, User, Users, Video } from "lucide-react";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ManagedUser } from "@/lib/users-admin";
 import { MeetingLinksTab } from "./meeting-links-tab";
@@ -24,11 +26,27 @@ export function SettingsTabs({
 
   return (
     <Tabs defaultValue="profile">
-      <TabsList>
-        <TabsTrigger value="profile">Profile</TabsTrigger>
-        {canManageUsers && <TabsTrigger value="users">Users</TabsTrigger>}
-        {role === "admin" && <TabsTrigger value="statuses">Statuses</TabsTrigger>}
-        <TabsTrigger value="meetings">Meeting Links</TabsTrigger>
+      <TabsList className="h-auto flex-wrap gap-1 bg-muted/60 p-1">
+        <TabsTrigger value="profile" className="gap-1.5">
+          <User className="size-3.5" />
+          Profile
+        </TabsTrigger>
+        {canManageUsers && (
+          <TabsTrigger value="users" className="gap-1.5">
+            <Users className="size-3.5" />
+            Users
+          </TabsTrigger>
+        )}
+        {role === "admin" && (
+          <TabsTrigger value="statuses" className="gap-1.5">
+            <Palette className="size-3.5" />
+            Statuses
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="meetings" className="gap-1.5">
+          <Video className="size-3.5" />
+          Meeting Links
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="profile" className="pt-4">

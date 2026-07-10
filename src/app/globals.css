@@ -133,4 +133,62 @@
   h1, h2, h3, h4 {
     @apply font-heading;
   }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
+    background-clip: padding-box;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-card/70 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/60;
+  }
+  .glass-surface {
+    @apply bg-background/75 backdrop-blur-xl backdrop-saturate-150;
+  }
+  .gradient-mesh {
+    background-image:
+      radial-gradient(at 15% 0%, color-mix(in oklch, var(--primary) 18%, transparent) 0px, transparent 55%),
+      radial-gradient(at 85% 10%, color-mix(in oklch, var(--accent) 55%, transparent) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, color-mix(in oklch, var(--primary) 10%, transparent) 0px, transparent 55%);
+  }
+  .gradient-border {
+    position: relative;
+    isolation: isolate;
+  }
+  .gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, color-mix(in oklch, var(--primary) 60%, transparent), color-mix(in oklch, var(--accent-foreground) 40%, transparent), transparent 70%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 40%, var(--accent-foreground)));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+  .shadow-glow {
+    box-shadow: 0 8px 30px -8px color-mix(in oklch, var(--primary) 45%, transparent);
+  }
 }

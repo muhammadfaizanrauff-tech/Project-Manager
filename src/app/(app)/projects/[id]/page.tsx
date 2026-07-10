@@ -3,6 +3,7 @@ import { CalendarDays, FolderKanban, ListChecks } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import { FadeIn } from "@/components/motion/fade-in";
 import { getCurrentProfile } from "@/lib/auth";
 import { getProject } from "@/lib/projects";
 import { getProjectWorkspaceData } from "@/lib/tasks";
@@ -10,7 +11,7 @@ import { ProjectWorkspace } from "./project-workspace";
 
 function formatDate(value: string | null) {
   if (!value) return "—";
-  return new Date(value).toLocaleDateString(undefined, {
+  return new Date(value).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -45,6 +46,7 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="flex flex-1 flex-col gap-6">
+      <FadeIn>
       <Card className="gap-4 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-4">
@@ -52,7 +54,7 @@ export default async function ProjectDetailPage({
               {project.logo_url && (
                 <AvatarImage src={project.logo_url} className="rounded-xl" />
               )}
-              <AvatarFallback className="rounded-xl bg-primary/10 text-primary">
+              <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent-foreground/70 text-primary-foreground">
                 <FolderKanban className="size-6" />
               </AvatarFallback>
             </Avatar>
@@ -99,6 +101,7 @@ export default async function ProjectDetailPage({
           </span>
         </div>
       </Card>
+      </FadeIn>
 
       <ProjectWorkspace
         projectId={project.id}

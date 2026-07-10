@@ -111,7 +111,7 @@ export function TaskSheet({
         <SheetHeader>
           <SheetTitle>Task #{task.serial_no}</SheetTitle>
           <SheetDescription>
-            Created {new Date(task.created_at).toLocaleDateString()}
+            Created {new Date(task.created_at).toLocaleDateString("en-US")}
           </SheetDescription>
         </SheetHeader>
 
@@ -203,7 +203,7 @@ export function TaskSheet({
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground">
-                          {new Date(c.created_at).toLocaleString(undefined, {
+                          {new Date(c.created_at).toLocaleString("en-US", {
                             month: "short",
                             day: "numeric",
                             hour: "numeric",

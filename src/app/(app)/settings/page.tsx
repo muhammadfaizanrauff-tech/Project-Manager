@@ -1,3 +1,4 @@
+import { FadeIn } from "@/components/motion/fade-in";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { listManagedUsers } from "@/lib/users-admin";
@@ -25,12 +26,12 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div>
+      <FadeIn>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
           Manage your profile{role !== "member" ? ", team, and workspace options" : ""}.
         </p>
-      </div>
+      </FadeIn>
 
       <SettingsTabs
         role={role}

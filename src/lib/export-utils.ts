@@ -33,7 +33,7 @@ export function buildExportRows(
       priority: t.priority,
       status: t.status_id ? statusById.get(t.status_id) ?? "" : "",
       dueDate: t.due_date ?? "",
-      created: new Date(t.created_at).toLocaleDateString(),
+      created: new Date(t.created_at).toLocaleDateString("en-US"),
     }));
 }
 

@@ -55,7 +55,7 @@ function TaskCard({
       {...attributes}
       {...listeners}
       onClick={onOpen}
-      className="flex cursor-grab flex-col gap-2 rounded-xl border bg-card p-3 text-sm shadow-sm active:cursor-grabbing"
+      className="flex cursor-grab flex-col gap-2 rounded-xl border bg-card p-3 text-sm shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20 active:cursor-grabbing"
     >
       <p className="font-medium leading-snug">{task.name}</p>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -66,7 +66,7 @@ function TaskCard({
         <span className="flex items-center gap-1">
           <CalendarDays className="size-3.5" />
           {task.due_date
-            ? new Date(task.due_date).toLocaleDateString(undefined, {
+            ? new Date(task.due_date).toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
               })
@@ -105,10 +105,15 @@ function Column({
   const { setNodeRef } = useDroppable({ id: category.id });
 
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-3 rounded-2xl bg-muted/30 p-3">
+    <div className="flex w-72 shrink-0 flex-col gap-3 rounded-2xl border border-border/60 bg-muted/30 p-3">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-sm font-semibold">{category.name}</h3>
-        <span className="text-xs text-muted-foreground">{tasks.length}</span>
+        <div className="flex items-center gap-2">
+          <span className="size-2 rounded-full bg-primary" />
+          <h3 className="text-sm font-semibold">{category.name}</h3>
+        </div>
+        <span className="rounded-full bg-background px-1.5 py-0.5 text-xs text-muted-foreground shadow-sm">
+          {tasks.length}
+        </span>
       </div>
 
       <div ref={setNodeRef} className="flex min-h-8 flex-col gap-2">
@@ -265,12 +270,14 @@ export function KanbanView({
 
       <DragOverlay>
         {activeTask && (
-          <TaskCard
-            task={activeTask}
-            statuses={statuses}
-            commentCount={commentCounts[activeTask.id] ?? 0}
-            onOpen={() => {}}
-          />
+          <div className="rotate-2 scale-105 shadow-xl">
+            <TaskCard
+              task={activeTask}
+              statuses={statuses}
+              commentCount={commentCounts[activeTask.id] ?? 0}
+              onOpen={() => {}}
+            />
+          </div>
         )}
       </DragOverlay>
     </DndContext>
