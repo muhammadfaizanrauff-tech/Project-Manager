@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getCurrentProfile } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
 export type ImportRow = {
@@ -23,6 +24,11 @@ export async function bulkImportTasks(
   projectId: string,
   rows: ImportRow[],
 ): Promise<ImportSummary | { error: string }> {
+  const profile = await getCurrentProfile();
+  if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
+    return { error: "Only Admins and Managers can import tasks." };
+  }
+
   const supabase = await createClient();
   const { data: user } = await supabase.auth.getUser();
   const warnings: string[] = [];

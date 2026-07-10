@@ -25,6 +25,13 @@ import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import { createTask, updateTask } from "./task-actions";
 
 const UNCATEGORIZED = { id: "__none__", name: "Uncategorized" };
+const CATEGORY_ACCENTS = ["#6366f1", "#ec4899", "#0ea5e9", "#f59e0b", "#22c55e", "#a855f7"];
+
+function accentFor(id: string) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return CATEGORY_ACCENTS[hash % CATEGORY_ACCENTS.length];
+}
 
 function TaskCard({
   task,
@@ -108,7 +115,13 @@ function Column({
     <div className="flex w-72 shrink-0 flex-col gap-3 rounded-2xl border border-border/60 bg-muted/30 p-3">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className="size-2 rounded-full bg-primary" />
+          <span
+            className="size-2 rounded-full"
+            style={{
+              backgroundColor:
+                category.id === UNCATEGORIZED.id ? "var(--muted-foreground)" : accentFor(category.id),
+            }}
+          />
           <h3 className="text-sm font-semibold">{category.name}</h3>
         </div>
         <span className="rounded-full bg-background px-1.5 py-0.5 text-xs text-muted-foreground shadow-sm">

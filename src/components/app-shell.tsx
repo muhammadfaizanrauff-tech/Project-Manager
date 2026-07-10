@@ -10,7 +10,10 @@ import {
   FolderKanban,
   LayoutDashboard,
   Menu,
+  Search,
   Settings as SettingsIcon,
+  Star,
+  Users,
 } from "lucide-react";
 
 import { Logo } from "@/components/logo";
@@ -23,12 +26,8 @@ import {
 } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
-
-const NAV_LINKS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/settings", label: "Settings", icon: SettingsIcon },
-];
+import { NotificationBell } from "@/components/notification-bell";
+import { CommandPalette } from "@/components/command-palette";
 
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
@@ -87,15 +86,19 @@ function NavLink({
 function SidebarContent({
   collapsed,
   onNavigate,
+  navLinks,
+  favorites,
 }: {
   collapsed: boolean;
   onNavigate?: () => void;
+  navLinks: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  favorites: { id: string; name: string }[];
 }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-1 flex-col gap-1 px-3">
-      {NAV_LINKS.map((link) => (
+      {navLinks.map((link) => (
         <NavLink
           key={link.href}
           {...link}
@@ -104,6 +107,25 @@ function SidebarContent({
           onNavigate={onNavigate}
         />
       ))}
+
+      {favorites.length > 0 && !collapsed && (
+        <div className="mt-4 flex flex-col gap-1">
+          <p className="px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
+            Favorites
+          </p>
+          {favorites.map((fav) => (
+            <NavLink
+              key={fav.id}
+              href={`/projects/${fav.id}`}
+              label={fav.name}
+              icon={Star}
+              active={isActive(pathname, `/projects/${fav.id}`)}
+              collapsed={collapsed}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      )}
     </nav>
   );
 }
@@ -112,11 +134,15 @@ export function AppShell({
   name,
   email,
   role,
+  userId,
+  favorites,
   children,
 }: {
   name: string;
   email: string;
   role: string;
+  userId: string;
+  favorites: { id: string; name: string }[];
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -136,8 +162,19 @@ export function AppShell({
     });
   }
 
+  const navLinks = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/projects", label: "Projects", icon: FolderKanban },
+    ...(role === "admin" || role === "manager"
+      ? [{ href: "/workload", label: "Workload", icon: Users }]
+      : []),
+    { href: "/settings", label: "Settings", icon: SettingsIcon },
+  ];
+
   return (
     <div className="flex min-h-screen">
+      <CommandPalette />
+
       {/* Desktop sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 72 : 232 }}
@@ -150,7 +187,7 @@ export function AppShell({
           </Link>
         </div>
 
-        <SidebarContent collapsed={collapsed} />
+        <SidebarContent collapsed={collapsed} navLinks={navLinks} favorites={favorites} />
 
         <div className="flex flex-col gap-2 p-3">
           <Button
@@ -180,13 +217,18 @@ export function AppShell({
             </SheetTitle>
           </SheetHeader>
           <div className="flex flex-1 flex-col py-3">
-            <SidebarContent collapsed={false} onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent
+              collapsed={false}
+              navLinks={navLinks}
+              favorites={favorites}
+              onNavigate={() => setMobileOpen(false)}
+            />
           </div>
         </SheetContent>
       </Sheet>
 
       {/* Main column */}
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-primary/[0.035]">
         <header className="glass-surface sticky top-0 z-40 flex h-14 items-center justify-between border-b px-4 sm:px-6">
           <div className="flex items-center gap-2">
             <Button
@@ -198,14 +240,27 @@ export function AppShell({
             >
               <Menu className="size-5" />
             </Button>
+            <button
+              onClick={() =>
+                window.dispatchEvent(
+                  new KeyboardEvent("keydown", { key: "k", metaKey: true }),
+                )
+              }
+              className="hidden items-center gap-2 rounded-full border bg-background/60 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted sm:flex"
+            >
+              <Search className="size-3.5" />
+              Search
+              <kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">⌘K</kbd>
+            </button>
           </div>
           <div className="flex items-center gap-1.5">
+            <NotificationBell userId={userId} />
             <ThemeToggle />
             <UserMenu name={name} email={email} role={role} />
           </div>
         </header>
 
-        <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto flex w-full min-w-0 max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
 

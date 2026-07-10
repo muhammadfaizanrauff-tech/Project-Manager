@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { LayoutDashboard, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LayoutGrid, Table as TableIcon } from "lucide-react";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
+import { CalendarView } from "./calendar-view";
 import { listComments } from "./comment-actions";
 import { ExportMenu } from "./export-menu";
 import { ImportDialog } from "./import-dialog";
@@ -22,6 +23,7 @@ export function ProjectWorkspace({
   statuses,
   members,
   initialCommentCounts,
+  initialLabels,
   canManage,
 }: {
   projectId: string;
@@ -31,12 +33,14 @@ export function ProjectWorkspace({
   statuses: Status[];
   members: { id: string; full_name: string | null; role: string }[];
   initialCommentCounts: Record<string, number>;
+  initialLabels: { id: string; project_id: string; name: string; color: string }[];
   canManage: boolean;
 }) {
   const [categories, setCategories] = useState(initialCategories);
   const [tasks, setTasks] = useState(initialTasks);
   const [commentCounts, setCommentCounts] = useState(initialCommentCounts);
-  const [view, setView] = useState<"table" | "kanban" | "dashboard">("table");
+  const [labels] = useState(initialLabels);
+  const [view, setView] = useState<"table" | "kanban" | "calendar" | "dashboard">("table");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const selectedTask = useMemo(
@@ -107,7 +111,7 @@ export function ProjectWorkspace({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
           <TabsList>
@@ -118,6 +122,10 @@ export function ProjectWorkspace({
             <TabsTrigger value="kanban">
               <LayoutGrid className="size-3.5" />
               Kanban
+            </TabsTrigger>
+            <TabsTrigger value="calendar">
+              <CalendarDays className="size-3.5" />
+              Calendar
             </TabsTrigger>
             <TabsTrigger value="dashboard">
               <LayoutDashboard className="size-3.5" />
@@ -164,6 +172,14 @@ export function ProjectWorkspace({
           onOpenTask={(task) => setSelectedTaskId(task.id)}
         />
       )}
+      {view === "calendar" && (
+        <CalendarView
+          projectId={projectId}
+          tasks={tasks}
+          onOpenTask={(task) => setSelectedTaskId(task.id)}
+          onTasksChange={setTasks}
+        />
+      )}
       {view === "dashboard" && (
         <ProjectDashboard
           tasks={tasks}
@@ -177,6 +193,8 @@ export function ProjectWorkspace({
         task={selectedTask}
         statuses={statuses}
         members={members}
+        allTasks={tasks}
+        projectLabels={labels}
         canDelete={canManage}
         onOpenChange={(open) => !open && setSelectedTaskId(null)}
         onTaskChange={updateTaskLocal}

@@ -23,6 +23,8 @@ export type TaskRecord = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  estimate_minutes: number | null;
+  recurrence: "none" | "daily" | "weekly" | "monthly";
 };
 
 export type CategoryRecord = {
@@ -47,6 +49,7 @@ export type ProjectWorkspaceData = {
   statuses: Status[];
   members: { id: string; full_name: string | null; role: string }[];
   commentCounts: Record<string, number>;
+  labels: { id: string; project_id: string; name: string; color: string }[];
 };
 
 export async function getProjectWorkspaceData(
@@ -54,7 +57,7 @@ export async function getProjectWorkspaceData(
 ): Promise<ProjectWorkspaceData> {
   const supabase = await createClient();
 
-  const [categoriesRes, tasksRes, statusesRes, membersRes] = await Promise.all([
+  const [categoriesRes, tasksRes, statusesRes, membersRes, labelsRes] = await Promise.all([
     supabase
       .from("categories")
       .select("id, project_id, name, position")
@@ -63,7 +66,7 @@ export async function getProjectWorkspaceData(
     supabase
       .from("tasks")
       .select(
-        "id, project_id, category_id, serial_no, name, description, priority, status_id, due_date, assignee_id, position, created_by, created_at, updated_at",
+        "id, project_id, category_id, serial_no, name, description, priority, status_id, due_date, assignee_id, position, created_by, created_at, updated_at, estimate_minutes, recurrence",
       )
       .eq("project_id", projectId)
       .order("position", { ascending: true }),
@@ -72,6 +75,11 @@ export async function getProjectWorkspaceData(
       .from("project_members")
       .select("profiles:user_id(id, full_name, role)")
       .eq("project_id", projectId),
+    supabase
+      .from("labels")
+      .select("id, project_id, name, color")
+      .eq("project_id", projectId)
+      .order("name"),
   ]);
 
   const taskIds = (tasksRes.data ?? []).map((t) => t.id);
@@ -94,6 +102,7 @@ export async function getProjectWorkspaceData(
       (m) => m.profiles as unknown as { id: string; full_name: string | null; role: string },
     ),
     commentCounts,
+    labels: labelsRes.data ?? [],
   };
 }
 

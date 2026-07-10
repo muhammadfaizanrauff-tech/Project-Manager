@@ -1,19 +1,20 @@
-import { FolderKanban } from "lucide-react";
-
 import { Card } from "@/components/ui/card";
+import { EmptyIllustration } from "@/components/empty-illustration";
 import { FadeIn } from "@/components/motion/fade-in";
-import { getCurrentProfile } from "@/lib/auth";
+import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
+import { listFavoriteProjectIds } from "@/lib/favorites";
 import { listAssignableProfiles, listProjects } from "@/lib/projects";
 import { NewProjectDialog } from "./new-project-dialog";
 import { ProjectsGrid } from "./projects-grid";
 
 export default async function ProjectsPage() {
-  const profile = await getCurrentProfile();
+  const [profile, user] = await Promise.all([getCurrentProfile(), getCurrentUser()]);
   const canCreate = profile?.role === "admin" || profile?.role === "manager";
 
-  const [projects, profiles] = await Promise.all([
+  const [projects, profiles, favoriteIds] = await Promise.all([
     listProjects(),
     canCreate ? listAssignableProfiles() : Promise.resolve([]),
+    user ? listFavoriteProjectIds(user.id) : Promise.resolve([]),
   ]);
 
   return (
@@ -32,9 +33,7 @@ export default async function ProjectsPage() {
 
       {projects.length === 0 ? (
         <Card className="flex flex-col items-center justify-center gap-3 rounded-2xl border-dashed py-16 text-center">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent-foreground/70 text-primary-foreground shadow-glow">
-            <FolderKanban className="size-6" />
-          </div>
+          <EmptyIllustration className="h-28 w-auto" />
           <p className="max-w-sm text-sm text-muted-foreground">
             {canCreate
               ? "Create your first project to start organizing tasks."
@@ -42,7 +41,7 @@ export default async function ProjectsPage() {
           </p>
         </Card>
       ) : (
-        <ProjectsGrid projects={projects} />
+        <ProjectsGrid projects={projects} favoriteIds={favoriteIds} />
       )}
     </div>
   );

@@ -22,7 +22,10 @@ Created by Faizan Rauf.
 
 3. **Run the schema.** In your Supabase project, open **SQL Editor → New query**, paste the
    entire contents of [`schema.sql`](./schema.sql), and click **Run**. This creates all
-   tables, RLS policies, triggers, and seeds the default status list.
+   tables, RLS policies, triggers, and seeds the default status list. Then do the same
+   with [`schema-v2.sql`](./schema-v2.sql) (subtasks, dependencies, labels, time
+   tracking, recurrence, activity log, favorites, notifications) — both files are
+   idempotent and safe to re-run.
 
 4. **Create a storage bucket for project logos.** Copy `.env.local` from the example below,
    fill in your Supabase keys, then run:

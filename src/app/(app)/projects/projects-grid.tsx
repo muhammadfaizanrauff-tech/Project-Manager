@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, FolderKanban, Users } from "lucide-react";
+import { useState, useTransition } from "react";
+import { CalendarDays, FolderKanban, Star, Users } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { StaggerItem, StaggerList } from "@/components/motion/stagger-list";
 import type { ProjectListItem } from "@/lib/projects";
+import { toggleFavorite } from "./favorites-actions";
 
 function formatDate(value: string | null) {
   if (!value) return "No end date";
@@ -31,7 +33,31 @@ function gradientFor(id: string) {
   return LOGO_GRADIENTS[hash % LOGO_GRADIENTS.length];
 }
 
-export function ProjectsGrid({ projects }: { projects: ProjectListItem[] }) {
+export function ProjectsGrid({
+  projects,
+  favoriteIds,
+}: {
+  projects: ProjectListItem[];
+  favoriteIds: string[];
+}) {
+  const [favorites, setFavorites] = useState(new Set(favoriteIds));
+  const [, startTransition] = useTransition();
+
+  function toggle(e: React.MouseEvent, projectId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const isFav = favorites.has(projectId);
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (isFav) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+    startTransition(() => {
+      toggleFavorite(projectId, !isFav);
+    });
+  }
+
   return (
     <StaggerList className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => {
@@ -40,6 +66,7 @@ export function ProjectsGrid({ projects }: { projects: ProjectListItem[] }) {
             ? Math.round((project.task_done / project.task_total) * 100)
             : 0;
         const overdue = project.end_date && new Date(project.end_date) < new Date();
+        const isFavorite = favorites.has(project.id);
 
         return (
           <StaggerItem key={project.id}>
@@ -66,15 +93,25 @@ export function ProjectsGrid({ projects }: { projects: ProjectListItem[] }) {
                       </p>
                     </div>
                   </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                      overdue
-                        ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400"
-                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400"
-                    }`}
-                  >
-                    {overdue ? "Overdue" : "Active"}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={(e) => toggle(e, project.id)}
+                      className="text-muted-foreground hover:text-amber-500"
+                    >
+                      <Star
+                        className={`size-4 ${isFavorite ? "fill-amber-400 text-amber-500" : ""}`}
+                      />
+                    </button>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        overdue
+                          ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400"
+                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400"
+                      }`}
+                    >
+                      {overdue ? "Overdue" : "Active"}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">

@@ -91,3 +91,79 @@ export async function getGlobalDashboardData(): Promise<GlobalDashboardData> {
     workload,
   };
 }
+
+export type WorkloadRow = {
+  userId: string;
+  name: string;
+  role: string;
+  openTasks: number;
+  overdueTasks: number;
+  highPriorityTasks: number;
+  projects: { id: string; name: string; count: number }[];
+};
+
+export async function getWorkloadData(): Promise<WorkloadRow[]> {
+  const supabase = await createClient();
+
+  const [{ data: tasks }, { data: statuses }, { data: profiles }, { data: projects }] =
+    await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, project_id, status_id, due_date, assignee_id, priority"),
+      supabase.from("statuses").select("id, label"),
+      supabase.from("profiles").select("id, full_name, role"),
+      supabase.from("projects").select("id, name"),
+    ]);
+
+  const doneStatusIds = new Set(
+    (statuses ?? []).filter((s) => s.label === "Done").map((s) => s.id),
+  );
+  const projectNameById = new Map((projects ?? []).map((p) => [p.id, p.name]));
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const rows = new Map<string, WorkloadRow>();
+  for (const profile of profiles ?? []) {
+    rows.set(profile.id, {
+      userId: profile.id,
+      name: profile.full_name || "Unnamed",
+      role: profile.role,
+      openTasks: 0,
+      overdueTasks: 0,
+      highPriorityTasks: 0,
+      projects: [],
+    });
+  }
+
+  const projectCounts = new Map<string, Map<string, number>>();
+
+  for (const task of tasks ?? []) {
+    if (!task.assignee_id) continue;
+    if (task.status_id && doneStatusIds.has(task.status_id)) continue;
+    const row = rows.get(task.assignee_id);
+    if (!row) continue;
+
+    row.openTasks += 1;
+    if (task.priority === "high") row.highPriorityTasks += 1;
+    if (task.due_date && new Date(task.due_date) < today) row.overdueTasks += 1;
+
+    if (!projectCounts.has(task.assignee_id)) projectCounts.set(task.assignee_id, new Map());
+    const perProject = projectCounts.get(task.assignee_id)!;
+    perProject.set(task.project_id, (perProject.get(task.project_id) ?? 0) + 1);
+  }
+
+  for (const [userId, perProject] of projectCounts) {
+    const row = rows.get(userId);
+    if (!row) continue;
+    row.projects = Array.from(perProject.entries()).map(([projectId, count]) => ({
+      id: projectId,
+      name: projectNameById.get(projectId) ?? "Unknown project",
+      count,
+    }));
+  }
+
+  return Array.from(rows.values())
+    .filter((r) => r.role !== "admin")
+    .sort((a, b) => b.openTasks - a.openTasks);
+}

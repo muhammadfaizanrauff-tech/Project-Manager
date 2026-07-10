@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+import { LOGO_PNG_BASE64 } from "@/lib/logo-base64";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 
 export type ExportRow = {
@@ -61,11 +62,17 @@ export function exportToPdf(projectName: string, rows: ExportRow[]) {
   const doc = new jsPDF({ orientation: "landscape" });
   const timestamp = new Date().toLocaleString();
 
+  try {
+    doc.addImage(LOGO_PNG_BASE64, "PNG", 14, 8, 12, 12);
+  } catch {
+    // logo embed is best-effort; report still generates without it
+  }
+
   doc.setFontSize(14);
-  doc.text(projectName, 14, 16);
+  doc.text(projectName, 30, 16);
   doc.setFontSize(9);
   doc.setTextColor(120);
-  doc.text(`Generated ${timestamp}`, 14, 22);
+  doc.text(`Generated ${timestamp}`, 30, 22);
 
   autoTable(doc, {
     startY: 28,

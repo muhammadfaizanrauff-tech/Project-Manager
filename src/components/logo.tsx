@@ -1,17 +1,29 @@
-import { LayoutGrid } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 export function Logo({
   className,
   iconOnly = false,
+  size = 32,
 }: {
   className?: string;
   iconOnly?: boolean;
+  size?: number;
 }) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 text-white shadow-sm">
-        <LayoutGrid className="size-4.5" strokeWidth={2.25} />
+      <div
+        className="relative shrink-0"
+        style={{ width: size, height: size }}
+      >
+        <Image
+          src="/brand/logo-icon.png"
+          alt="Project Manager"
+          fill
+          sizes={`${size}px`}
+          className="object-contain"
+          priority
+        />
       </div>
       {!iconOnly && (
         <span className="text-[15px] font-semibold tracking-tight">
@@ -19,5 +31,33 @@ export function Logo({
         </span>
       )}
     </div>
+  );
+}
+
+export function LogoMark({ size = 96 }: { size?: number }) {
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <Image
+        src="/brand/logo-icon.png"
+        alt="Project Manager"
+        fill
+        sizes={`${size}px`}
+        className="object-contain"
+        priority
+      />
+    </div>
+  );
+}
+
+export function LogoFull({ width = 180 }: { width?: number }) {
+  return (
+    <Image
+      src="/brand/logo.png"
+      alt="Project Manager"
+      width={width}
+      height={width}
+      className="object-contain"
+      priority
+    />
   );
 }

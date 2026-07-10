@@ -1,4 +1,4 @@
-import { Logo } from "@/components/logo";
+import { LogoFull } from "@/components/logo";
 import { SiteFooter } from "@/components/site-footer";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card } from "@/components/ui/card";
@@ -23,8 +23,8 @@ export default async function LoginPage({
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-24">
         <FadeIn y={16}>
           <Card className="gradient-border w-full max-w-sm gap-6 rounded-2xl p-8 shadow-lg">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <Logo />
+            <div className="flex flex-col items-center gap-1 text-center">
+              <LogoFull width={150} />
               <p className="mt-1 text-sm text-muted-foreground">
                 Sign in to your workspace
               </p>

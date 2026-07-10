@@ -1,25 +1,31 @@
 import Link from "next/link";
-import { ArrowRight, FolderKanban } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyIllustration } from "@/components/empty-illustration";
 import { getCurrentProfile } from "@/lib/auth";
 import { getGlobalDashboardData } from "@/lib/dashboard";
 import { listProjects } from "@/lib/projects";
 import { GlobalDashboard } from "./global-dashboard";
+import { GlobalImportDialog } from "./global-import-dialog";
 
 export default async function DashboardPage() {
   const profile = await getCurrentProfile();
+  const canImport = profile?.role === "admin" || profile?.role === "manager";
 
   if (profile?.role === "admin") {
     const data = await getGlobalDashboardData();
     return (
       <div className="flex flex-1 flex-col gap-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Global Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Overview across every project in the workspace.
-          </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Global Dashboard</h1>
+            <p className="text-sm text-muted-foreground">
+              Overview across every project in the workspace.
+            </p>
+          </div>
+          {canImport && <GlobalImportDialog />}
         </div>
         <GlobalDashboard data={data} />
       </div>
@@ -30,20 +36,21 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {profile
-            ? `Signed in as ${profile.full_name ?? "you"} (${profile.role}).`
-            : "You're signed in."}
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {profile
+              ? `Signed in as ${profile.full_name ?? "you"} (${profile.role}).`
+              : "You're signed in."}
+          </p>
+        </div>
+        {canImport && <GlobalImportDialog />}
       </div>
 
       {projects.length === 0 ? (
         <Card className="flex flex-col items-center justify-center gap-3 rounded-2xl border-dashed py-16 text-center">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <FolderKanban className="size-6" />
-          </div>
+          <EmptyIllustration className="h-28 w-auto" />
           <p className="max-w-sm text-sm text-muted-foreground">
             No projects yet. Head to Projects to create your first one.
           </p>

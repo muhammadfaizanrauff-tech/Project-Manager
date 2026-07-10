@@ -7,6 +7,7 @@ import { FadeIn } from "@/components/motion/fade-in";
 import { getCurrentProfile } from "@/lib/auth";
 import { getProject } from "@/lib/projects";
 import { getProjectWorkspaceData } from "@/lib/tasks";
+import { CloneProjectButton } from "./clone-project-button";
 import { ProjectWorkspace } from "./project-workspace";
 
 function formatDate(value: string | null) {
@@ -45,7 +46,7 @@ export default async function ProjectDetailPage({
   const canManage = profile?.role === "admin" || profile?.role === "manager";
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex min-w-0 flex-1 flex-col gap-6">
       <FadeIn>
       <Card className="gap-4 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -68,7 +69,7 @@ export default async function ProjectDetailPage({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <AvatarGroup>
               {project.members.slice(0, 5).map((member) => (
                 <Avatar key={member.id} className="size-8 ring-2 ring-background">
@@ -83,6 +84,7 @@ export default async function ProjectDetailPage({
                 +{project.members.length - 5} more
               </span>
             )}
+            {canManage && <CloneProjectButton projectId={project.id} />}
           </div>
         </div>
 
@@ -111,6 +113,7 @@ export default async function ProjectDetailPage({
         statuses={workspace.statuses}
         members={workspace.members}
         initialCommentCounts={workspace.commentCounts}
+        initialLabels={workspace.labels}
         canManage={canManage}
       />
     </div>
