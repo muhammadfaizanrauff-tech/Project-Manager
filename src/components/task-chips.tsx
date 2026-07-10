@@ -64,7 +64,7 @@ export function PrioritySelect({
           style.className,
         )}
       >
-        <SelectValue />
+        <SelectValue>{style.label}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(PRIORITY_STYLES) as Array<keyof typeof PRIORITY_STYLES>).map(
@@ -128,7 +128,7 @@ export function StatusSelect({
         className="h-auto w-auto gap-1 rounded-full border-none px-2 py-0.5 text-xs font-semibold shadow-none"
         style={current ? statusChipStyle(current.color) : undefined}
       >
-        <SelectValue placeholder="No status" />
+        <SelectValue placeholder="No status">{current?.label ?? "No status"}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {statuses.map((status) => (
