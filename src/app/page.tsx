@@ -59,9 +59,9 @@ export default function Home() {
             size="sm"
             className="rounded-full px-4 shadow-glow"
             nativeButton={false}
-            render={<Link href="/dashboard" />}
+            render={<Link href="/login" />}
           >
-            Open workspace
+            Sign in
             <ArrowRight className="size-3.5" />
           </Button>
         </div>
@@ -96,9 +96,9 @@ export default function Home() {
               size="lg"
               className="rounded-full px-6 shadow-glow transition-transform hover:scale-[1.02]"
               nativeButton={false}
-              render={<Link href="/dashboard" />}
+              render={<Link href="/login" />}
             >
-              Go to your workspace
+              Sign in to your workspace
               <ArrowRight className="size-4" />
             </Button>
           </div>

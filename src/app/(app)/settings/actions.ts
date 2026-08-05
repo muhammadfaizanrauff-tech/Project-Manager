@@ -129,6 +129,50 @@ export async function deleteStatus(id: string) {
   return { ok: true };
 }
 
+// ── Delete requests ─────────────────────────────────────────────────────
+export async function approveDeleteRequest(requestId: string) {
+  await requireRole("admin");
+  const supabase = await createClient();
+
+  const { data: request, error: fetchError } = await supabase
+    .from("delete_requests")
+    .select("task_id")
+    .eq("id", requestId)
+    .single();
+  if (fetchError || !request) return { error: "Delete request not found." };
+
+  if (request.task_id) {
+    const { error: deleteError } = await supabase
+      .from("tasks")
+      .delete()
+      .eq("id", request.task_id);
+    if (deleteError) return { error: deleteError.message };
+  }
+
+  const { error } = await supabase
+    .from("delete_requests")
+    .update({ status: "approved", resolved_at: new Date().toISOString() })
+    .eq("id", requestId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function rejectDeleteRequest(requestId: string) {
+  await requireRole("admin");
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("delete_requests")
+    .update({ status: "rejected", resolved_at: new Date().toISOString() })
+    .eq("id", requestId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 // ── Meeting links (global) ───────────────────────────────────────────────
 export async function createMeetingLink(label: string, url: string) {
   await requireRole("admin", "manager");

@@ -52,12 +52,13 @@ export async function setNewPassword(newPassword: string) {
 
   if (user) {
     // Keep the encrypted copy in sync so the Admin panel's reveal/change
-    // feature and the app's auto sign-in both stay correct after a reset.
+    // password feature stays correct after a self-service reset.
     await createServiceClient()
       .from("credentials")
       .update({ encrypted_password: encryptPassword(newPassword) })
       .eq("user_id", user.id);
   }
 
-  redirect("/dashboard");
+  await supabase.auth.signOut();
+  redirect("/login?passwordChanged=1");
 }

@@ -16,5 +16,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(new URL("/dashboard?error=auth", origin));
+  return NextResponse.redirect(new URL("/login?error=auth", origin));
 }

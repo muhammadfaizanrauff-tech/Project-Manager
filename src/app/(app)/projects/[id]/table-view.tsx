@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CheckSquare, ChevronDown, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { CheckSquare, ChevronDown, Clock, MessageSquare, Plus, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +10,10 @@ import { Input } from "@/components/ui/input";
 import { CategoryDonut } from "@/components/category-donut";
 import { PrioritySelect, StatusSelect } from "@/components/task-chips";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
+import {
+  requestBulkTaskDeletion,
+  requestTaskDeletion,
+} from "./delete-request-actions";
 import {
   bulkDeleteTasks,
   bulkUpdateTasks,
@@ -60,6 +64,7 @@ export function TableView({
   const [newTaskName, setNewTaskName] = useState<Record<string, string>>({});
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [requestedDeleteIds, setRequestedDeleteIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
     new Set(ALL_COLUMNS.map((c) => c.key)),
@@ -148,6 +153,13 @@ export function TableView({
     });
   }
 
+  function handleRequestDelete(task: TaskRecord) {
+    setRequestedDeleteIds((prev) => new Set(prev).add(task.id));
+    startTransition(() => {
+      requestTaskDeletion(projectId, task.id, task.name);
+    });
+  }
+
   function handleDeleteCategory(categoryId: string) {
     onCategoriesChange(categories.filter((c) => c.id !== categoryId));
     startTransition(() => {
@@ -187,8 +199,24 @@ export function TableView({
     });
   }
 
+  function bulkRequestDelete() {
+    const targets = tasks.filter((t) => selected.has(t.id));
+    setRequestedDeleteIds((prev) => {
+      const next = new Set(prev);
+      targets.forEach((t) => next.add(t.id));
+      return next;
+    });
+    setSelected(new Set());
+    startTransition(() => {
+      requestBulkTaskDeletion(
+        projectId,
+        targets.map((t) => ({ id: t.id, name: t.name })),
+      );
+    });
+  }
+
   const colSpan =
-    2 + 1 + (visibleColumns.size) + (canManage ? 2 : 1);
+    2 + 1 + (visibleColumns.size) + 2;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -286,7 +314,7 @@ export function TableView({
                             {visibleColumns.has("comments") && (
                               <th className="w-20 px-3 py-2 font-medium">Comments</th>
                             )}
-                            {canManage && <th className="w-10 px-3 py-2" />}
+                            <th className="w-10 px-3 py-2" />
                           </tr>
                         </thead>
                         <tbody>
@@ -365,13 +393,32 @@ export function TableView({
                                   </button>
                                 </td>
                               )}
-                              {canManage && (
+                              {canManage ? (
                                 <td className="px-3 py-2">
                                   <button
                                     onClick={() => handleDeleteTask(task)}
                                     className="text-muted-foreground hover:text-destructive"
                                   >
                                     <Trash2 className="size-3.5" />
+                                  </button>
+                                </td>
+                              ) : (
+                                <td className="px-3 py-2">
+                                  <button
+                                    onClick={() => handleRequestDelete(task)}
+                                    disabled={requestedDeleteIds.has(task.id)}
+                                    title={
+                                      requestedDeleteIds.has(task.id)
+                                        ? "Delete request sent"
+                                        : "Request deletion"
+                                    }
+                                    className="text-muted-foreground hover:text-destructive disabled:cursor-default disabled:text-primary disabled:hover:text-primary"
+                                  >
+                                    {requestedDeleteIds.has(task.id) ? (
+                                      <Clock className="size-3.5" />
+                                    ) : (
+                                      <Trash2 className="size-3.5" />
+                                    )}
                                   </button>
                                 </td>
                               )}
@@ -476,10 +523,15 @@ export function TableView({
                 </option>
               ))}
             </select>
-            {canManage && (
+            {canManage ? (
               <Button size="sm" variant="destructive" onClick={bulkDelete}>
                 <Trash2 className="size-3.5" />
                 Delete
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={bulkRequestDelete}>
+                <Clock className="size-3.5" />
+                Request delete
               </Button>
             )}
             <button

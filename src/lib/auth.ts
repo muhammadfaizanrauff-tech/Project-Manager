@@ -1,4 +1,5 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export type Role = "admin" | "manager" | "member";
@@ -40,10 +41,6 @@ export async function getCurrentProfile(): Promise<Profile | null> {
 
 export async function requireUser() {
   const user = await getCurrentUser();
-  if (!user) {
-    throw new Error(
-      "No admin account found — run scripts/seed-admin.mjs to create one.",
-    );
-  }
+  if (!user) redirect("/login");
   return user;
 }

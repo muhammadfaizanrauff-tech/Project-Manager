@@ -2,6 +2,7 @@ import { FadeIn } from "@/components/motion/fade-in";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { listManagedUsers } from "@/lib/users-admin";
+import type { DeleteRequestRow } from "./delete-requests-tab";
 import { SettingsTabs } from "./settings-tabs";
 
 export default async function SettingsPage() {
@@ -10,7 +11,7 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
 
-  const [users, statuses, meetingLinksRes] = await Promise.all([
+  const [users, statuses, meetingLinksRes, deleteRequestsRes] = await Promise.all([
     role === "admin" || role === "manager"
       ? listManagedUsers(role)
       : Promise.resolve([]),
@@ -22,6 +23,13 @@ export default async function SettingsPage() {
       .select("id, label, url, created_at")
       .is("project_id", null)
       .order("created_at"),
+    role === "admin"
+      ? supabase
+          .from("delete_requests")
+          .select("id, task_name, created_at, project:project_id(id, name), requester:requested_by(full_name)")
+          .eq("status", "pending")
+          .order("created_at")
+      : Promise.resolve({ data: [] }),
   ]);
 
   return (
@@ -42,6 +50,7 @@ export default async function SettingsPage() {
         users={users}
         statuses={statuses.data ?? []}
         meetingLinks={meetingLinksRes.data ?? []}
+        deleteRequests={(deleteRequestsRes.data ?? []) as unknown as DeleteRequestRow[]}
       />
     </div>
   );
