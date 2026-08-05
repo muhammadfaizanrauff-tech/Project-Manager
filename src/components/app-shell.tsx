@@ -10,10 +10,8 @@ import {
   FolderKanban,
   LayoutDashboard,
   Menu,
-  Search,
   Settings as SettingsIcon,
   Star,
-  Users,
 } from "lucide-react";
 
 import { Logo } from "@/components/logo";
@@ -26,8 +24,6 @@ import {
 } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
-import { NotificationBell } from "@/components/notification-bell";
-import { CommandPalette } from "@/components/command-palette";
 
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
@@ -134,14 +130,12 @@ export function AppShell({
   name,
   email,
   role,
-  userId,
   favorites,
   children,
 }: {
   name: string;
   email: string;
   role: string;
-  userId: string;
   favorites: { id: string; name: string }[];
   children: React.ReactNode;
 }) {
@@ -165,16 +159,11 @@ export function AppShell({
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/projects", label: "Projects", icon: FolderKanban },
-    ...(role === "admin" || role === "manager"
-      ? [{ href: "/workload", label: "Workload", icon: Users }]
-      : []),
     { href: "/settings", label: "Settings", icon: SettingsIcon },
   ];
 
   return (
     <div className="flex min-h-screen">
-      <CommandPalette />
-
       {/* Desktop sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 72 : 232 }}
@@ -230,31 +219,16 @@ export function AppShell({
       {/* Main column */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-primary/[0.035]">
         <header className="glass-surface sticky top-0 z-40 flex h-14 items-center justify-between border-b px-4 sm:px-6">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="sm:hidden"
-              onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="size-5" />
-            </Button>
-            <button
-              onClick={() =>
-                window.dispatchEvent(
-                  new KeyboardEvent("keydown", { key: "k", metaKey: true }),
-                )
-              }
-              className="hidden items-center gap-2 rounded-full border bg-background/60 px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted sm:flex"
-            >
-              <Search className="size-3.5" />
-              Search
-              <kbd className="rounded border bg-muted px-1 py-0.5 text-[10px]">⌘K</kbd>
-            </button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="sm:hidden"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu className="size-5" />
+          </Button>
           <div className="flex items-center gap-1.5">
-            <NotificationBell userId={userId} />
             <ThemeToggle />
             <UserMenu name={name} email={email} role={role} />
           </div>

@@ -1,20 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
-import { ChevronDown, KeyRound, Loader2, LogOut, Settings, User } from "lucide-react";
+import { ChevronDown, KeyRound, Settings, User } from "lucide-react";
 
-import { logout } from "@/app/login/actions";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,18 +33,8 @@ export function UserMenu({
   email: string;
   role: string;
 }) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
-
-  function handleLogout() {
-    startTransition(() => {
-      logout();
-    });
-  }
-
   return (
-    <>
-      <DropdownMenu>
+    <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
@@ -96,40 +74,7 @@ export function UserMenu({
             <KeyRound className="size-4" />
             Change Password
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => setConfirmOpen(true)}
-          >
-            <LogOut className="size-4" />
-            Log out
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Log out?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You&apos;ll need to sign in again to access your workspace.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={pending}
-              onClick={(e) => {
-                e.preventDefault();
-                handleLogout();
-              }}
-            >
-              {pending && <Loader2 className="size-4 animate-spin" />}
-              Log out
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </>
   );
 }

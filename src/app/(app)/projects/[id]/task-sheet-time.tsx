@@ -5,17 +5,8 @@ import { Clock, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { ActivityEntry, TimeLog } from "@/lib/task-extras";
+import type { TimeLog } from "@/lib/task-extras";
 import { deleteTimeLog, logTime, setEstimate } from "./task-extras-actions";
-
-const ACTION_LABELS: Record<string, (meta: Record<string, unknown> | null) => string> = {
-  created: () => "created this task",
-  commented: () => "added a comment",
-  subtask_added: (meta) => `added checklist item "${meta?.name ?? ""}"`,
-  dependency_added: () => "added a blocking task",
-  time_logged: (meta) => `logged ${meta?.minutes ?? 0} min`,
-  field_changed: (meta) => `updated ${meta?.field ?? "a field"}`,
-};
 
 function formatMinutes(mins: number) {
   const h = Math.floor(mins / 60);
@@ -25,12 +16,11 @@ function formatMinutes(mins: number) {
   return `${h}h ${m}m`;
 }
 
-export function TaskActivityPanel({
+export function TaskTimePanel({
   projectId,
   taskId,
   estimateMinutes,
   timeLogs,
-  activity,
   onEstimateChange,
   onTimeLogsChange,
 }: {
@@ -38,7 +28,6 @@ export function TaskActivityPanel({
   taskId: string;
   estimateMinutes: number | null;
   timeLogs: TimeLog[];
-  activity: ActivityEntry[];
   onEstimateChange: (minutes: number | null) => void;
   onTimeLogsChange: (logs: TimeLog[]) => void;
 }) {
@@ -127,26 +116,6 @@ export function TaskActivityPanel({
             <Plus className="size-3.5" />
             Log time
           </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 border-t pt-4">
-        <p className="text-xs font-medium text-muted-foreground">Activity</p>
-        <div className="flex flex-col gap-2">
-          {activity.length === 0 && (
-            <p className="text-xs text-muted-foreground">No activity yet.</p>
-          )}
-          {activity.map((entry) => (
-            <div key={entry.id} className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {entry.actor?.full_name ?? "Someone"}
-              </span>{" "}
-              {ACTION_LABELS[entry.action]?.(entry.meta) ?? entry.action}
-              <span className="ml-1.5">
-                · {new Date(entry.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-              </span>
-            </div>
-          ))}
         </div>
       </div>
     </div>

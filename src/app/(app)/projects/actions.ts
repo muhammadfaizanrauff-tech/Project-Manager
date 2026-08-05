@@ -8,7 +8,6 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { notifyProjectAssigned } from "@/lib/email";
-import { createNotification } from "@/lib/notifications";
 
 export type CreateProjectState = {
   error?: string;
@@ -82,28 +81,12 @@ export async function createProject(
     await supabase.from("project_members").insert(memberRows);
     await Promise.all(
       memberRows.map((row) =>
-        Promise.all([
-          notifyProjectAssigned({ userId: row.user_id, projectName: name }),
-          createNotification({
-            userId: row.user_id,
-            type: "project_assigned",
-            title: `Added to ${name}`,
-            link: `/projects/${project.id}`,
-          }),
-        ]),
+        notifyProjectAssigned({ userId: row.user_id, projectName: name }),
       ),
     );
   }
   if (managerId && !memberIds.includes(managerId)) {
-    await Promise.all([
-      notifyProjectAssigned({ userId: managerId, projectName: name }),
-      createNotification({
-        userId: managerId,
-        type: "project_assigned",
-        title: `Added to ${name}`,
-        link: `/projects/${project.id}`,
-      }),
-    ]);
+    await notifyProjectAssigned({ userId: managerId, projectName: name });
   }
 
   revalidatePath("/projects");

@@ -26,16 +26,6 @@ export type TimeLog = {
   user: { full_name: string | null } | null;
 };
 
-export type ActivityEntry = {
-  id: string;
-  task_id: string;
-  actor_id: string | null;
-  action: string;
-  meta: Record<string, unknown> | null;
-  created_at: string;
-  actor: { full_name: string | null } | null;
-};
-
 export type DependencyRef = { id: string; name: string; serial_no: number };
 
 export type TaskExtras = {
@@ -45,46 +35,33 @@ export type TaskExtras = {
   dependsOn: DependencyRef[];
   blocks: DependencyRef[];
   timeLogs: TimeLog[];
-  activity: ActivityEntry[];
 };
 
 export async function getTaskExtras(taskId: string): Promise<TaskExtras> {
   const supabase = await createClient();
 
-  const [
-    subtasksRes,
-    taskLabelsRes,
-    dependsOnRes,
-    blocksRes,
-    timeLogsRes,
-    activityRes,
-  ] = await Promise.all([
-    supabase
-      .from("subtasks")
-      .select("id, task_id, name, is_done, position")
-      .eq("task_id", taskId)
-      .order("position"),
-    supabase.from("task_labels").select("label_id").eq("task_id", taskId),
-    supabase
-      .from("task_dependencies")
-      .select("depends_on:depends_on_task_id(id, name, serial_no)")
-      .eq("task_id", taskId),
-    supabase
-      .from("task_dependencies")
-      .select("blocked:task_id(id, name, serial_no)")
-      .eq("depends_on_task_id", taskId),
-    supabase
-      .from("time_logs")
-      .select("id, task_id, user_id, minutes, note, logged_at, user:user_id(full_name)")
-      .eq("task_id", taskId)
-      .order("logged_at", { ascending: false }),
-    supabase
-      .from("activity_log")
-      .select("id, task_id, actor_id, action, meta, created_at, actor:actor_id(full_name)")
-      .eq("task_id", taskId)
-      .order("created_at", { ascending: false })
-      .limit(50),
-  ]);
+  const [subtasksRes, taskLabelsRes, dependsOnRes, blocksRes, timeLogsRes] =
+    await Promise.all([
+      supabase
+        .from("subtasks")
+        .select("id, task_id, name, is_done, position")
+        .eq("task_id", taskId)
+        .order("position"),
+      supabase.from("task_labels").select("label_id").eq("task_id", taskId),
+      supabase
+        .from("task_dependencies")
+        .select("depends_on:depends_on_task_id(id, name, serial_no)")
+        .eq("task_id", taskId),
+      supabase
+        .from("task_dependencies")
+        .select("blocked:task_id(id, name, serial_no)")
+        .eq("depends_on_task_id", taskId),
+      supabase
+        .from("time_logs")
+        .select("id, task_id, user_id, minutes, note, logged_at, user:user_id(full_name)")
+        .eq("task_id", taskId)
+        .order("logged_at", { ascending: false }),
+    ]);
 
   return {
     subtasks: subtasksRes.data ?? [],
@@ -97,10 +74,6 @@ export async function getTaskExtras(taskId: string): Promise<TaskExtras> {
     timeLogs: (timeLogsRes.data ?? []).map((r) => ({
       ...r,
       user: r.user as unknown as { full_name: string | null } | null,
-    })),
-    activity: (activityRes.data ?? []).map((r) => ({
-      ...r,
-      actor: r.actor as unknown as { full_name: string | null } | null,
     })),
   };
 }

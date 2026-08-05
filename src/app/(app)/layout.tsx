@@ -17,7 +17,7 @@ export default async function AppLayout({
   const role = profile?.role ?? "member";
 
   return (
-    <AppShell name={name} email={user.email ?? ""} role={role} userId={user.id} favorites={favorites}>
+    <AppShell name={name} email={user.email ?? ""} role={role} favorites={favorites}>
       {children}
     </AppShell>
   );

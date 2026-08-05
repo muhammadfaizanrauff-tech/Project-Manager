@@ -7,29 +7,11 @@ import {
   notifyStatusChange,
   notifyTaskAssigned,
 } from "@/lib/email";
-import { createNotification } from "@/lib/notifications";
 
 const NOTIFY_STATUS_LABELS = new Set(["Waiting for Feedback", "Feedback Asked"]);
 
 async function client() {
   return createClient();
-}
-
-async function currentUserId() {
-  const supabase = await client();
-  const { data } = await supabase.auth.getUser();
-  return data.user?.id ?? null;
-}
-
-async function logActivity(taskId: string, action: string, meta?: Record<string, unknown>) {
-  const supabase = await client();
-  const actorId = await currentUserId();
-  await supabase.from("activity_log").insert({
-    task_id: taskId,
-    actor_id: actorId,
-    action,
-    meta: meta ?? null,
-  });
 }
 
 export async function createCategory(projectId: string, name: string) {
@@ -91,7 +73,6 @@ export async function createTask(
     .single();
 
   if (error) return { error: error.message };
-  await logActivity(data.id, "created");
   revalidatePath(`/projects/${projectId}`);
   return { data };
 }
@@ -106,16 +87,6 @@ export type TaskPatch = Partial<{
   position: number;
   assignee_id: string | null;
 }>;
-
-const FIELD_LABELS: Record<string, string> = {
-  name: "name",
-  description: "description",
-  priority: "priority",
-  status_id: "status",
-  due_date: "due date",
-  category_id: "category",
-  assignee_id: "assignee",
-};
 
 export async function updateTask(
   projectId: string,
@@ -135,12 +106,6 @@ export async function updateTask(
   revalidatePath(`/projects/${projectId}`);
 
   if (before) {
-    for (const key of Object.keys(patch) as Array<keyof TaskPatch>) {
-      if (key === "position") continue;
-      if (patch[key] !== before[key as keyof typeof before]) {
-        void logActivity(taskId, "field_changed", { field: FIELD_LABELS[key] ?? key });
-      }
-    }
     void handleTaskNotifications(projectId, taskId, before, patch);
     void handleRecurrence(projectId, taskId, before, patch);
   }
@@ -182,13 +147,6 @@ async function handleTaskNotifications(
       projectName: project.name,
       projectId,
     });
-    await createNotification({
-      userId: patch.assignee_id,
-      type: "task_assigned",
-      title: `You've been assigned: ${taskName}`,
-      body: project.name,
-      link: `/projects/${projectId}`,
-    });
     const managerId = project.manager_id ?? project.created_by;
     if (managerId && managerId !== patch.assignee_id) {
       await notifyManagerOfAssignment({
@@ -208,13 +166,6 @@ async function handleTaskNotifications(
         taskName,
         projectName: project.name,
         statusLabel: status.label,
-      });
-      await createNotification({
-        userId: recipientId,
-        type: "status_change",
-        title: `${status.label}: ${taskName}`,
-        body: project.name,
-        link: `/projects/${projectId}`,
       });
     }
   }
@@ -289,7 +240,6 @@ export async function addComment(projectId: string, taskId: string, body: string
     .single();
 
   if (error) return { error: error.message };
-  await logActivity(taskId, "commented");
   revalidatePath(`/projects/${projectId}`);
   return { data };
 }

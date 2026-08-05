@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, LayoutDashboard, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { LayoutDashboard, LayoutGrid, Table as TableIcon } from "lucide-react";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
-import { CalendarView } from "./calendar-view";
 import { listComments } from "./comment-actions";
 import { ExportMenu } from "./export-menu";
 import { ImportDialog } from "./import-dialog";
@@ -40,7 +39,7 @@ export function ProjectWorkspace({
   const [tasks, setTasks] = useState(initialTasks);
   const [commentCounts, setCommentCounts] = useState(initialCommentCounts);
   const [labels] = useState(initialLabels);
-  const [view, setView] = useState<"table" | "kanban" | "calendar" | "dashboard">("table");
+  const [view, setView] = useState<"table" | "kanban" | "dashboard">("table");
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const selectedTask = useMemo(
@@ -123,10 +122,6 @@ export function ProjectWorkspace({
               <LayoutGrid className="size-3.5" />
               Kanban
             </TabsTrigger>
-            <TabsTrigger value="calendar">
-              <CalendarDays className="size-3.5" />
-              Calendar
-            </TabsTrigger>
             <TabsTrigger value="dashboard">
               <LayoutDashboard className="size-3.5" />
               Dashboard
@@ -170,14 +165,6 @@ export function ProjectWorkspace({
           commentCounts={commentCounts}
           onTasksChange={setTasks}
           onOpenTask={(task) => setSelectedTaskId(task.id)}
-        />
-      )}
-      {view === "calendar" && (
-        <CalendarView
-          projectId={projectId}
-          tasks={tasks}
-          onOpenTask={(task) => setSelectedTaskId(task.id)}
-          onTasksChange={setTasks}
         />
       )}
       {view === "dashboard" && (

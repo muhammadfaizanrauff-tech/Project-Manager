@@ -96,8 +96,8 @@ export function ChangePasswordForm({
           If an account exists for <span className="font-medium">{email}</span>,
           a password reset link has been sent. Open it to set a new password.
         </p>
-        <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-          Back to sign in
+        <Link href="/dashboard" className="text-sm font-medium text-primary hover:underline">
+          Back to dashboard
         </Link>
       </div>
     );
@@ -192,10 +192,10 @@ export function ChangePasswordForm({
       )}
 
       <Link
-        href="/login"
+        href="/dashboard"
         className="text-center text-sm text-muted-foreground hover:underline"
       >
-        Back to sign in
+        Back to dashboard
       </Link>
     </form>
   );

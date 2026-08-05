@@ -2,7 +2,9 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { encryptPassword } from "@/lib/crypto";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export async function verifyCurrentPassword(
   email: string,
@@ -39,12 +41,23 @@ export async function requestPasswordReset(email: string) {
 
 export async function setNewPassword(newPassword: string) {
   const supabase = await createClient();
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
   if (error) {
     return { ok: false as const, error: "Could not update password." };
   }
 
-  await supabase.auth.signOut();
-  redirect("/login?passwordChanged=1");
+  if (user) {
+    // Keep the encrypted copy in sync so the Admin panel's reveal/change
+    // feature and the app's auto sign-in both stay correct after a reset.
+    await createServiceClient()
+      .from("credentials")
+      .update({ encrypted_password: encryptPassword(newPassword) })
+      .eq("user_id", user.id);
+  }
+
+  redirect("/dashboard");
 }

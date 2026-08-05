@@ -13,21 +13,6 @@ async function currentUserId() {
   return data.user?.id ?? null;
 }
 
-export async function logActivity(
-  taskId: string,
-  action: string,
-  meta?: Record<string, unknown>,
-) {
-  const supabase = await client();
-  const actorId = await currentUserId();
-  await supabase.from("activity_log").insert({
-    task_id: taskId,
-    actor_id: actorId,
-    action,
-    meta: meta ?? null,
-  });
-}
-
 // ── Subtasks ──────────────────────────────────────────────────────────────
 export async function addSubtask(projectId: string, taskId: string, name: string) {
   const supabase = await client();
@@ -43,7 +28,6 @@ export async function addSubtask(projectId: string, taskId: string, name: string
     .single();
 
   if (error) return { error: error.message };
-  await logActivity(taskId, "subtask_added", { name });
   revalidatePath(`/projects/${projectId}`);
   return { data };
 }
@@ -83,7 +67,6 @@ export async function addDependency(
     .from("task_dependencies")
     .insert({ task_id: taskId, depends_on_task_id: dependsOnTaskId });
   if (error) return { error: error.message };
-  await logActivity(taskId, "dependency_added");
   revalidatePath(`/projects/${projectId}`);
   return { ok: true };
 }
@@ -164,7 +147,6 @@ export async function logTime(
     .select("id, task_id, user_id, minutes, note, logged_at, user:user_id(full_name)")
     .single();
   if (error) return { error: error.message };
-  await logActivity(taskId, "time_logged", { minutes });
   revalidatePath(`/projects/${projectId}`);
   return { data };
 }

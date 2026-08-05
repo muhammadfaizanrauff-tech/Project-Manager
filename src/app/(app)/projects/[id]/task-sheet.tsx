@@ -24,14 +24,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { PrioritySelect, StatusSelect } from "@/components/task-chips";
-import type { ActivityEntry, DependencyRef, Subtask, TimeLog, Label as LabelRow } from "@/lib/task-extras";
+import type { DependencyRef, Subtask, TimeLog, Label as LabelRow } from "@/lib/task-extras";
 import type { CommentRecord, Status, TaskRecord } from "@/lib/tasks";
 import { addComment, deleteComment, updateTask } from "./task-actions";
 import { setRecurrence } from "./task-extras-actions";
 import { getTaskExtras } from "./extras-fetch-actions";
 import { TaskChecklist } from "./task-sheet-checklist";
 import { TaskLinks } from "./task-sheet-links";
-import { TaskActivityPanel } from "./task-sheet-activity";
+import { TaskTimePanel } from "./task-sheet-time";
 
 function initials(name: string | null) {
   if (!name) return "?";
@@ -50,7 +50,6 @@ const emptyExtras = {
   dependsOn: [] as DependencyRef[],
   blocks: [] as DependencyRef[],
   timeLogs: [] as TimeLog[],
-  activity: [] as ActivityEntry[],
 };
 
 export function TaskSheet({
@@ -160,7 +159,7 @@ export function TaskSheet({
               )}
             </TabsTrigger>
             <TabsTrigger value="links">Links</TabsTrigger>
-            <TabsTrigger value="activity">Activity</TabsTrigger>
+            <TabsTrigger value="time">Time</TabsTrigger>
           </TabsList>
 
           <div className="flex-1 overflow-y-auto px-4 pb-4">
@@ -356,13 +355,12 @@ export function TaskSheet({
               />
             </TabsContent>
 
-            <TabsContent value="activity" className="pt-3">
-              <TaskActivityPanel
+            <TabsContent value="time" className="pt-3">
+              <TaskTimePanel
                 projectId={task.project_id}
                 taskId={task.id}
                 estimateMinutes={task.estimate_minutes}
                 timeLogs={extras.timeLogs}
-                activity={extras.activity}
                 onEstimateChange={(estimate_minutes) =>
                   onTaskChange(task.id, { estimate_minutes } as Partial<TaskRecord>)
                 }
