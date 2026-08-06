@@ -136,12 +136,21 @@ export async function approveDeleteRequest(requestId: string) {
 
   const { data: request, error: fetchError } = await supabase
     .from("delete_requests")
-    .select("task_id")
+    .select("task_id, project_id, kind")
     .eq("id", requestId)
     .single();
   if (fetchError || !request) return { error: "Delete request not found." };
 
-  if (request.task_id) {
+  if (request.kind === "project") {
+    // Cascades to the project's tasks, categories, members and remaining
+    // delete requests via the schema's on delete cascade.
+    const { error: deleteError } = await supabase
+      .from("projects")
+      .delete()
+      .eq("id", request.project_id);
+    if (deleteError) return { error: deleteError.message };
+    revalidatePath("/projects");
+  } else if (request.task_id) {
     const { error: deleteError } = await supabase
       .from("tasks")
       .delete()

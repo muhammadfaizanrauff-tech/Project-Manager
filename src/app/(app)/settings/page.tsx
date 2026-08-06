@@ -27,7 +27,7 @@ export default async function SettingsPage() {
     role === "admin"
       ? supabase
           .from("delete_requests")
-          .select("id, task_name, created_at, project:project_id(id, name), requester:requested_by(full_name)")
+          .select("id, task_name, kind, created_at, project:project_id(id, name), requester:requested_by(full_name)")
           .eq("status", "pending")
           .order("created_at")
       : Promise.resolve({ data: [] }),

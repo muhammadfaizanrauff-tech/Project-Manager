@@ -110,6 +110,101 @@ export async function createProject(
   redirect(`/projects/${project.id}`);
 }
 
+export type UpdateProjectState = {
+  error?: string;
+  // Timestamp rather than a boolean so the dialog can tell a fresh save from a
+  // stale one — `ok: true` would stay true forever and slam the dialog shut
+  // the next time it opened.
+  savedAt?: number;
+};
+
+export async function updateProject(
+  _prevState: UpdateProjectState,
+  formData: FormData,
+): Promise<UpdateProjectState> {
+  const user = await getCurrentUser();
+  const profile = await getCurrentProfile();
+  if (!user || !profile) return { error: "You need to be signed in." };
+
+  const projectId = String(formData.get("projectId") ?? "");
+  if (!projectId) return { error: "Missing project." };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Project name is required." };
+
+  // Same split as project creation: only Admins and Managers hand a project to
+  // a manager or change who's staffed on it. RLS (can_edit_project) is what
+  // actually decides whether this person may touch the project at all.
+  const canAssignPeople = profile.role === "admin" || profile.role === "manager";
+
+  const supabase = await createClient();
+  const logo = formData.get("logo");
+
+  let logoUrl: string | undefined;
+  if (logo instanceof File && logo.size > 0) {
+    const service = createServiceClient();
+    const ext = logo.name.split(".").pop() || "png";
+    const path = `${randomUUID()}.${ext}`;
+    const { error: uploadError } = await service.storage
+      .from("project-logos")
+      .upload(path, logo, { contentType: logo.type, upsert: false });
+    if (uploadError) return { error: "Could not upload logo. Try a smaller image." };
+
+    logoUrl = service.storage.from("project-logos").getPublicUrl(path).data.publicUrl;
+  }
+
+  const { error } = await supabase
+    .from("projects")
+    .update({
+      name,
+      start_date: String(formData.get("startDate") ?? "") || undefined,
+      end_date: String(formData.get("endDate") ?? "") || null,
+      ...(logoUrl ? { logo_url: logoUrl } : {}),
+      ...(canAssignPeople
+        ? { manager_id: String(formData.get("managerId") ?? "") || null }
+        : {}),
+    })
+    .eq("id", projectId);
+
+  if (error) {
+    if (error.code === "42501") {
+      return { error: "You don't have permission to edit this project." };
+    }
+    return { error: error.message };
+  }
+
+  if (canAssignPeople) {
+    const memberIds = Array.from(
+      new Set(formData.getAll("memberIds").map(String).filter(Boolean)),
+    );
+    // Replace the roster wholesale — the form always submits the full list.
+    await supabase.from("project_members").delete().eq("project_id", projectId);
+    if (memberIds.length > 0) {
+      await supabase
+        .from("project_members")
+        .insert(memberIds.map((userId) => ({ project_id: projectId, user_id: userId })));
+    }
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+  return { savedAt: Date.now() };
+}
+
+export async function deleteProject(projectId: string) {
+  const profile = await getCurrentProfile();
+  if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
+    return { error: "Only Admins and Managers can delete projects." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("projects").delete().eq("id", projectId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/projects");
+  redirect("/projects");
+}
+
 export async function cloneProject(projectId: string) {
   const user = await getCurrentUser();
   const profile = await getCurrentProfile();

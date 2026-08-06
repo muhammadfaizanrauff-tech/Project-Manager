@@ -9,6 +9,7 @@ import { approveDeleteRequest, rejectDeleteRequest } from "./actions";
 export type DeleteRequestRow = {
   id: string;
   task_name: string;
+  kind: "task" | "project";
   created_at: string;
   project: { id: string; name: string } | null;
   requester: { full_name: string | null } | null;
@@ -45,10 +46,19 @@ export function DeleteRequestsTab({ requests }: { requests: DeleteRequestRow[] }
           className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-muted"
         >
           <div className="flex-1 text-sm">
-            <p className="font-medium">{request.task_name}</p>
+            <p className="flex flex-wrap items-center gap-1.5 font-medium">
+              {request.task_name}
+              {request.kind === "project" && (
+                <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-destructive">
+                  Whole project
+                </span>
+              )}
+            </p>
             <p className="text-xs text-muted-foreground">
-              {request.project?.name ?? "Unknown project"} · requested by{" "}
-              {request.requester?.full_name ?? "someone"}
+              {request.kind === "project"
+                ? "Deletes every task and category in it"
+                : request.project?.name ?? "Unknown project"}{" "}
+              · requested by {request.requester?.full_name ?? "someone"}
             </p>
           </div>
           <Button

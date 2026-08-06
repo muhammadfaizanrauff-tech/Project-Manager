@@ -5,9 +5,10 @@ import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@/components/u
 import { Card } from "@/components/ui/card";
 import { FadeIn } from "@/components/motion/fade-in";
 import { getCurrentProfile } from "@/lib/auth";
-import { getProject } from "@/lib/projects";
+import { getProject, listAssignableProfiles } from "@/lib/projects";
 import { getProjectWorkspaceData } from "@/lib/tasks";
 import { CloneProjectButton } from "./clone-project-button";
+import { DeleteProjectButton, EditProjectDialog } from "./project-settings";
 import { ProjectWorkspace } from "./project-workspace";
 
 function formatDate(value: string | null) {
@@ -46,6 +47,9 @@ export default async function ProjectDetailPage({
   // Members add and edit freely (never gated in the UI) but never delete —
   // they raise delete requests instead, including in projects they created.
   const isStaff = profile?.role === "admin" || profile?.role === "manager";
+  // Mirrors can_edit_project in schema-v6.sql: staff, or whoever created it.
+  const canEdit = isStaff || project.created_by === profile?.id;
+  const profiles = isStaff ? await listAssignableProfiles() : [];
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -86,7 +90,21 @@ export default async function ProjectDetailPage({
                 +{project.members.length - 5} more
               </span>
             )}
+            {canEdit && (
+              <EditProjectDialog
+                project={project}
+                profiles={profiles}
+                canAssignPeople={isStaff}
+              />
+            )}
             {isStaff && <CloneProjectButton projectId={project.id} />}
+            {canEdit && (
+              <DeleteProjectButton
+                projectId={project.id}
+                projectName={project.name}
+                canDelete={isStaff}
+              />
+            )}
           </div>
         </div>
 
