@@ -9,11 +9,13 @@ import {
   ChevronsRight,
   FolderKanban,
   LayoutDashboard,
+  LogOut,
   Menu,
   Settings as SettingsIcon,
   Star,
 } from "lucide-react";
 
+import { stopImpersonation } from "@/app/(app)/impersonate-actions";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -24,6 +26,26 @@ import {
 } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
+
+function ImpersonationBanner({ name, role }: { name: string; role: string }) {
+  return (
+    <form
+      action={stopImpersonation}
+      className="flex min-h-9 shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-gradient-to-r from-primary via-primary to-chart-2 px-4 py-1.5 text-center text-xs font-medium text-primary-foreground"
+    >
+      <span className="truncate">
+        Viewing as <strong className="font-semibold">{name}</strong> ({role})
+      </span>
+      <button
+        type="submit"
+        className="flex shrink-0 items-center gap-1 rounded-full bg-primary-foreground/15 px-2.5 py-1 font-semibold hover:bg-primary-foreground/25"
+      >
+        <LogOut className="size-3" />
+        Exit
+      </button>
+    </form>
+  );
+}
 
 function isActive(pathname: string, href: string) {
   if (href === "/dashboard") return pathname === "/dashboard";
@@ -131,12 +153,14 @@ export function AppShell({
   email,
   role,
   favorites,
+  impersonating,
   children,
 }: {
   name: string;
   email: string;
   role: string;
   favorites: { id: string; name: string }[];
+  impersonating?: boolean;
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -163,7 +187,9 @@ export function AppShell({
   ];
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen flex-col">
+      {impersonating && <ImpersonationBanner name={name} role={role} />}
+      <div className="flex min-h-0 flex-1">
       {/* Desktop sidebar */}
       <motion.aside
         animate={{ width: collapsed ? 72 : 232 }}
@@ -241,6 +267,7 @@ export function AppShell({
         <footer className="py-4 text-center text-xs text-muted-foreground">
           Created by Faizan Rauf
         </footer>
+      </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Eye, EyeOff, Loader2, Plus, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, LogIn, Plus, Trash2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { ManagedUser } from "@/lib/users-admin";
+import { startImpersonation } from "../impersonate-actions";
 import {
   changeUserPassword,
   createManagedUser,
@@ -277,7 +278,43 @@ function DeleteUserDialog({
   );
 }
 
-export function UsersTab({ role, users }: { role: "admin" | "manager"; users: ManagedUser[] }) {
+function SwitchToButton({ userId }: { userId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function handleClick() {
+    setError(null);
+    startTransition(async () => {
+      const result = await startImpersonation(userId);
+      if (result && "error" in result) setError(result.error ?? "Could not switch.");
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        onClick={handleClick}
+        disabled={pending}
+        className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
+        title="View their dashboard, projects, and tasks as them"
+      >
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : <LogIn className="size-3.5" />}
+        Switch to
+      </button>
+      {error && <p className="text-[11px] text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+export function UsersTab({
+  role,
+  currentUserId,
+  users,
+}: {
+  role: "admin" | "manager";
+  currentUserId: string;
+  users: ManagedUser[];
+}) {
   const [, startTransition] = useTransition();
   const [list, setList] = useState(users);
 
@@ -295,40 +332,58 @@ export function UsersTab({ role, users }: { role: "admin" | "manager"; users: Ma
       </div>
 
       <div className="overflow-x-auto rounded-2xl border">
-        <table className="w-full min-w-[560px] text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Email</th>
               <th className="px-4 py-2 font-medium">Role</th>
               {role === "admin" && <th className="px-4 py-2 font-medium">Password</th>}
+              <th className="px-4 py-2 font-medium">Switch</th>
               <th className="w-10 px-4 py-2" />
             </tr>
           </thead>
           <tbody>
-            {list.map((user) => (
-              <tr key={user.id} className="border-t">
-                <td className="px-4 py-2.5 font-medium">{user.full_name || "Unnamed"}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{user.email}</td>
-                <td className="px-4 py-2.5">
-                  <RoleBadge role={user.role} />
-                </td>
-                {role === "admin" && (
+            {list.map((user) => {
+              const isSelf = user.id === currentUserId;
+              // A manager can see other managers (read-only) but can only
+              // manage — delete, reset password — regular members.
+              const readOnlyForActor = role === "manager" && user.role === "manager" && !isSelf;
+
+              return (
+                <tr key={user.id} className="border-t">
+                  <td className="px-4 py-2.5 font-medium">{user.full_name || "Unnamed"}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{user.email}</td>
                   <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <PasswordCell userId={user.id} />
-                      <ChangePasswordDialog userId={user.id} />
-                    </div>
+                    <RoleBadge role={user.role} />
                   </td>
-                )}
-                <td className="px-4 py-2.5">
-                  <DeleteUserDialog user={user} onConfirm={() => handleDelete(user)} />
-                </td>
-              </tr>
-            ))}
+                  {role === "admin" && (
+                    <td className="px-4 py-2.5">
+                      {!isSelf && (
+                        <div className="flex items-center gap-2">
+                          <PasswordCell userId={user.id} />
+                          <ChangePasswordDialog userId={user.id} />
+                        </div>
+                      )}
+                    </td>
+                  )}
+                  <td className="px-4 py-2.5">
+                    {!isSelf && <SwitchToButton userId={user.id} />}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {!isSelf && !readOnlyForActor && (
+                      <DeleteUserDialog user={user} onConfirm={() => handleDelete(user)} />
+                    )}
+                    {readOnlyForActor && (
+                      <span className="text-[11px] text-muted-foreground">Read-only</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             {list.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
                   No users yet.
                 </td>
               </tr>

@@ -9,7 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { buildExportRows, exportToExcel, exportToPdf } from "@/lib/export-utils";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 
 export function ExportMenu({
@@ -23,7 +22,11 @@ export function ExportMenu({
   tasks: TaskRecord[];
   statuses: Status[];
 }) {
-  function handleExport(format: "excel" | "pdf") {
+  // jspdf/jspdf-autotable/xlsx are sizeable and only ever needed once someone
+  // actually exports — load them on demand instead of in the Table view's
+  // default bundle.
+  async function handleExport(format: "excel" | "pdf") {
+    const { buildExportRows, exportToExcel, exportToPdf } = await import("@/lib/export-utils");
     const rows = buildExportRows(categories, tasks, statuses);
     if (format === "excel") exportToExcel(projectName, rows);
     else exportToPdf(projectName, rows);

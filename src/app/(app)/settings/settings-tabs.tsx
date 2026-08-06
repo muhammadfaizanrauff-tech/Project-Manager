@@ -12,6 +12,7 @@ import { UsersTab } from "./users-tab";
 
 export function SettingsTabs({
   role,
+  currentUserId,
   profile,
   users,
   statuses,
@@ -19,6 +20,7 @@ export function SettingsTabs({
   deleteRequests,
 }: {
   role: string;
+  currentUserId: string;
   profile: { fullName: string; email: string };
   users: ManagedUser[];
   statuses: { id: string; label: string; color: string; position: number }[];
@@ -69,7 +71,11 @@ export function SettingsTabs({
 
       {canManageUsers && (
         <TabsContent value="users" className="pt-4">
-          <UsersTab role={role as "admin" | "manager"} users={users} />
+          <UsersTab
+            role={role as "admin" | "manager"}
+            currentUserId={currentUserId}
+            users={users}
+          />
         </TabsContent>
       )}
 

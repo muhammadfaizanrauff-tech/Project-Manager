@@ -1,7 +1,9 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { ACTIVE_SESSION_COOKIE, activeSessionCookieOptions } from "@/lib/supabase/session-marker";
 
 export type LoginState = {
   error?: string;
@@ -29,11 +31,18 @@ export async function login(
     return { error: "Incorrect email or password." };
   }
 
+  // Marks this browser session as active. Unlike the Supabase auth cookie (long-lived
+  // by design), this one has no maxAge — the browser drops it the moment the whole
+  // browser process closes, and `updateSession` (middleware.ts) treats its absence as
+  // "log back in", satisfying the log-out-on-browser-close requirement.
+  (await cookies()).set(ACTIVE_SESSION_COOKIE, "1", activeSessionCookieOptions);
+
   redirect(next.startsWith("/") ? next : "/dashboard");
 }
 
 export async function logout() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  (await cookies()).delete(ACTIVE_SESSION_COOKIE);
   redirect("/login");
 }

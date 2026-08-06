@@ -15,7 +15,10 @@ export async function listManagedUsers(scope: "admin" | "manager"): Promise<Mana
   const service = createServiceClient();
 
   const query = supabase.from("profiles").select("id, full_name, role, created_at");
-  const { data: profiles } = scope === "manager" ? await query.eq("role", "member") : await query;
+  // Managers can see (read-only) other managers too, per the cross-manager
+  // visibility model — but never the Admin.
+  const { data: profiles } =
+    scope === "manager" ? await query.in("role", ["member", "manager"]) : await query;
 
   if (!profiles || profiles.length === 0) return [];
 

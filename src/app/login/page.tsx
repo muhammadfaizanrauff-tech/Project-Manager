@@ -8,9 +8,9 @@ import { LoginForm } from "./login-form";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; expired?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, expired } = await searchParams;
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -29,6 +29,12 @@ export default async function LoginPage({
                 Sign in to your workspace
               </p>
             </div>
+
+            {expired && (
+              <p className="rounded-lg bg-muted px-3 py-2 text-center text-sm text-muted-foreground">
+                You were signed out because the browser was closed. Sign in again.
+              </p>
+            )}
 
             <LoginForm next={next ?? "/dashboard"} />
 

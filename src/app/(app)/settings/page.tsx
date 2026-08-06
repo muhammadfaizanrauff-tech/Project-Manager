@@ -43,6 +43,7 @@ export default async function SettingsPage() {
 
       <SettingsTabs
         role={role}
+        currentUserId={user?.id ?? ""}
         profile={{
           fullName: profile?.full_name ?? "",
           email: user?.email ?? "",

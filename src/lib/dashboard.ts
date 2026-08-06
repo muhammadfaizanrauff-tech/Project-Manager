@@ -19,12 +19,16 @@ export type GlobalDashboardData = {
 export async function getGlobalDashboardData(): Promise<GlobalDashboardData> {
   const supabase = await createClient();
 
-  const [{ data: projects }, { data: tasks }, { data: statuses }, { data: profiles }] =
+  // RLS already scopes project_members to accessible projects independently
+  // of the `projects` result, so it can run in the same batch instead of a
+  // second round trip after `projects` resolves.
+  const [{ data: projects }, { data: tasks }, { data: statuses }, { data: profiles }, { data: memberRows }] =
     await Promise.all([
       supabase.from("projects").select("id, name"),
       supabase.from("tasks").select("id, project_id, status_id, due_date, assignee_id"),
       supabase.from("statuses").select("id, label"),
       supabase.from("profiles").select("id, full_name, role"),
+      supabase.from("project_members").select("project_id"),
     ]);
 
   const doneStatusIds = new Set(
@@ -35,14 +39,8 @@ export async function getGlobalDashboardData(): Promise<GlobalDashboardData> {
   today.setHours(0, 0, 0, 0);
 
   const memberCounts = new Map<string, number>();
-  if (projects && projects.length > 0) {
-    const { data: memberRows } = await supabase
-      .from("project_members")
-      .select("project_id")
-      .in("project_id", projects.map((p) => p.id));
-    for (const row of memberRows ?? []) {
-      memberCounts.set(row.project_id, (memberCounts.get(row.project_id) ?? 0) + 1);
-    }
+  for (const row of memberRows ?? []) {
+    memberCounts.set(row.project_id, (memberCounts.get(row.project_id) ?? 0) + 1);
   }
 
   const projectSummaries = (projects ?? []).map((p) => {

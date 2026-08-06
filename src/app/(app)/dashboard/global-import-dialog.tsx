@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Papa from "papaparse";
 import { AlertTriangle, CheckCircle2, Loader2, Plus, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -120,7 +119,8 @@ export function GlobalImportDialog() {
     setStep("upload");
   }
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
+    const { default: Papa } = await import("papaparse");
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,

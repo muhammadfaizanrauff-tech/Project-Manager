@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Papa from "papaparse";
 import { AlertTriangle, CheckCircle2, Loader2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -52,7 +51,10 @@ export function ImportDialog({ projectId }: { projectId: string }) {
     setResult(null);
   }
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
+    // papaparse is only needed once someone actually picks a file — load it
+    // on demand instead of in the Table view's default bundle.
+    const { default: Papa } = await import("papaparse");
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,

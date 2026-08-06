@@ -1,4 +1,5 @@
 import "server-only";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -43,4 +44,11 @@ export async function requireUser() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   return user;
+}
+
+// Cheap presence check (no decryption) — true while an admin/manager is
+// "switched to" someone else via impersonate-actions.ts.
+export async function isImpersonating() {
+  const cookieStore = await cookies();
+  return cookieStore.get("pm_impersonator") !== undefined;
 }

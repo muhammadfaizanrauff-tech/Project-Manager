@@ -1,18 +1,29 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { LayoutDashboard, LayoutGrid, Table as TableIcon } from "lucide-react";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import { listComments } from "./comment-actions";
 import { ExportMenu } from "./export-menu";
 import { ImportDialog } from "./import-dialog";
-import { KanbanView } from "./kanban-view";
-import { ProjectDashboard } from "./project-dashboard";
 import { TableView } from "./table-view";
 import { TaskSheet } from "./task-sheet";
+
+// Table is the default view — Kanban (dnd-kit) and Dashboard (recharts) are
+// only ever needed once someone actually switches to that tab, so they're
+// loaded on demand instead of bundled with the default Table view.
+const KanbanView = dynamic(() => import("./kanban-view").then((m) => m.KanbanView), {
+  loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
+});
+const ProjectDashboard = dynamic(
+  () => import("./project-dashboard").then((m) => m.ProjectDashboard),
+  { loading: () => <Skeleton className="h-96 w-full rounded-2xl" /> },
+);
 
 export function ProjectWorkspace({
   projectId,

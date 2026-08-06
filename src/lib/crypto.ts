@@ -22,3 +22,14 @@ export function decryptPassword(encoded: string) {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
 }
+
+// Same AES-256-GCM cipher, generalized to arbitrary JSON — used to stash the
+// impersonator's own session tokens in a cookie while "switched to" someone
+// else (see impersonate-actions.ts), not just passwords.
+export function encryptJson(value: unknown) {
+  return encryptPassword(JSON.stringify(value));
+}
+
+export function decryptJson<T>(encoded: string): T {
+  return JSON.parse(decryptPassword(encoded)) as T;
+}
