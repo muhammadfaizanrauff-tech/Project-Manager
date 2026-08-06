@@ -22,6 +22,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { bulkImportTasks, type ImportRow, type ImportSummary } from "./import-actions";
+import {
+  importProjectJson,
+  type JsonImportSummary,
+  type ProjectBundle,
+} from "./json-actions";
 
 const TARGET_FIELDS: { key: keyof ImportRow; label: string; required?: boolean }[] = [
   { key: "name", label: "Task name", required: true },
@@ -39,7 +44,7 @@ const TARGET_FIELDS: { key: keyof ImportRow; label: string; required?: boolean }
 const COLUMN_FIELDS = TARGET_FIELDS.filter((f) => f.key !== "category");
 const NEW_CATEGORY = "__new__";
 
-type Step = "upload" | "map" | "preview" | "result";
+type Step = "upload" | "map" | "preview" | "json-confirm" | "json-result" | "result";
 type CategoryMode = "column" | "fixed";
 
 export function ImportDialog({
@@ -61,6 +66,11 @@ export function ImportDialog({
   const [newCategoryName, setNewCategoryName] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportSummary | { error: string } | null>(null);
+  const [bundle, setBundle] = useState<ProjectBundle | null>(null);
+  const [jsonResult, setJsonResult] = useState<JsonImportSummary | { error: string } | null>(
+    null,
+  );
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const resolvedFixedCategory =
     fixedCategory === NEW_CATEGORY ? newCategoryName.trim() : fixedCategory;
@@ -75,9 +85,31 @@ export function ImportDialog({
     setFixedCategory(categories[0]?.name ?? NEW_CATEGORY);
     setNewCategoryName("");
     setResult(null);
+    setBundle(null);
+    setJsonResult(null);
+    setUploadError(null);
   }
 
   async function handleFile(file: File) {
+    setUploadError(null);
+
+    // A JSON export carries its own structure, so it skips the column-mapping
+    // step entirely and goes straight to a confirmation.
+    if (file.name.toLowerCase().endsWith(".json")) {
+      try {
+        const parsed = JSON.parse(await file.text()) as ProjectBundle;
+        if (parsed?.version !== 1 || !Array.isArray(parsed.tasks)) {
+          setUploadError("That JSON isn't a project export from this app.");
+          return;
+        }
+        setBundle(parsed);
+        setStep("json-confirm");
+      } catch {
+        setUploadError("That file isn't valid JSON.");
+      }
+      return;
+    }
+
     // papaparse is only needed once someone actually picks a file — load it
     // on demand instead of in the Table view's default bundle.
     const { default: Papa } = await import("papaparse");
@@ -127,6 +159,15 @@ export function ImportDialog({
     setStep("result");
   }
 
+  async function handleJsonConfirm() {
+    if (!bundle) return;
+    setImporting(true);
+    const result = await importProjectJson(projectId, bundle);
+    setImporting(false);
+    setJsonResult(result);
+    setStep("json-result");
+  }
+
   return (
     <Dialog
       open={open}
@@ -138,27 +179,103 @@ export function ImportDialog({
     >
       <DialogTrigger render={<Button variant="outline" size="sm" />}>
         <Upload className="size-3.5" />
-        Import CSV
+        Import
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Import tasks from CSV</DialogTitle>
+          <DialogTitle>Import tasks</DialogTitle>
         </DialogHeader>
 
         {step === "upload" && (
           <div className="flex flex-col gap-3">
             <p className="text-sm text-muted-foreground">
-              Upload a .csv file with your tasks. You&apos;ll map columns to
-              fields next.
+              Upload a <strong>.csv</strong> of tasks (you&apos;ll map columns
+              next), or a <strong>.json</strong> backup exported from this app
+              to restore it as-is.
             </p>
             <Input
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.json,application/json"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleFile(file);
               }}
             />
+            {uploadError && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {uploadError}
+              </p>
+            )}
+          </div>
+        )}
+
+        {step === "json-confirm" && bundle && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-muted-foreground">
+              Restoring{" "}
+              <strong className="text-foreground">{bundle.project?.name}</strong>, exported{" "}
+              {new Date(bundle.exportedAt).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+              .
+            </p>
+            <ul className="flex flex-col gap-1 rounded-lg border p-3 text-sm">
+              <li>{bundle.tasks.length} tasks</li>
+              <li>{bundle.categories?.length ?? 0} categories</li>
+              <li>{bundle.subtasks?.length ?? 0} checklist items</li>
+              <li>{bundle.labels?.length ?? 0} labels</li>
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Everything is added to this project — nothing existing is
+              removed. Categories and labels with matching names are reused
+              rather than duplicated.
+            </p>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setStep("upload")}>
+                Back
+              </Button>
+              <Button onClick={handleJsonConfirm} disabled={importing}>
+                {importing && <Loader2 className="size-4 animate-spin" />}
+                Import {bundle.tasks.length} tasks
+              </Button>
+            </DialogFooter>
+          </div>
+        )}
+
+        {step === "json-result" && jsonResult && (
+          <div className="flex flex-col gap-3">
+            {"error" in jsonResult ? (
+              <div className="flex items-start gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                {jsonResult.error}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+                  <CheckCircle2 className="size-4 shrink-0" />
+                  Restored {jsonResult.tasks} tasks, {jsonResult.categories} new
+                  categories, {jsonResult.subtasks} checklist items.
+                </div>
+                {jsonResult.warnings.length > 0 && (
+                  <div className="flex flex-col gap-1 rounded-lg bg-yellow-50 p-3 text-xs text-yellow-800 dark:bg-yellow-500/10 dark:text-yellow-400">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <AlertTriangle className="size-3.5" />
+                      Notes
+                    </span>
+                    <ul className="list-inside list-disc">
+                      {jsonResult.warnings.slice(0, 8).map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+            <DialogFooter>
+              <Button onClick={() => window.location.reload()}>Done</Button>
+            </DialogFooter>
           </div>
         )}
 

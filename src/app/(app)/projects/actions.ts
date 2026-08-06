@@ -76,7 +76,17 @@ export async function createProject(
     .single();
 
   if (error || !project) {
-    return { error: "Could not create the project." };
+    // 42501 = row-level security refused the insert. Almost always means the
+    // database is behind the app: schema-v5.sql opens project creation to
+    // every signed-in user, and until it's applied only Admins and Managers
+    // can insert. Say so rather than leaving a dead-end message.
+    if (error?.code === "42501") {
+      return {
+        error:
+          "The database hasn't been updated to allow this yet — run schema-catch-up.sql in the Supabase SQL editor, then try again.",
+      };
+    }
+    return { error: error?.message ?? "Could not create the project." };
   }
 
   const memberRows = Array.from(new Set(memberIds)).map((userId) => ({

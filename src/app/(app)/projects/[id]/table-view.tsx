@@ -66,6 +66,9 @@ export function TableView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [requestedDeleteIds, setRequestedDeleteIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
+  // Deliberately not persisted like filters/columns are — a search you typed
+  // last week shouldn't silently hide tasks when you come back.
+  const [search, setSearch] = useState("");
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(
     new Set(ALL_COLUMNS.map((c) => c.key)),
   );
@@ -89,10 +92,27 @@ export function TableView({
     localStorage.setItem(`table-columns-${projectId}`, JSON.stringify(Array.from(next)));
   }
 
+  const query = search.trim().toLowerCase();
+  const statusLabelById = new Map(statuses.map((s) => [s.id, s.label.toLowerCase()]));
+
   const filteredTasks = tasks.filter((t) => {
     if (filters.priorities.length > 0 && !filters.priorities.includes(t.priority)) return false;
     if (filters.statusIds.length > 0 && !(t.status_id && filters.statusIds.includes(t.status_id)))
       return false;
+    if (query) {
+      const haystack = [
+        t.name,
+        t.description ?? "",
+        `#${t.serial_no}`,
+        String(t.serial_no),
+        t.priority,
+        t.status_id ? statusLabelById.get(t.status_id) ?? "" : "",
+        t.due_date ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
     return true;
   });
 
@@ -226,6 +246,9 @@ export function TableView({
         onFiltersChange={updateFilters}
         visibleColumns={visibleColumns}
         onVisibleColumnsChange={updateVisibleColumns}
+        search={search}
+        onSearchChange={setSearch}
+        resultCount={filteredTasks.length}
       />
 
       <div className="flex min-w-0 flex-col gap-5">

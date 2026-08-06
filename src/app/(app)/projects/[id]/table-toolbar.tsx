@@ -1,9 +1,10 @@
 "use client";
 
-import { Columns3, Filter, X } from "lucide-react";
+import { Columns3, Filter, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PRIORITY_STYLES } from "@/components/task-chips";
 import type { Status } from "@/lib/tasks";
@@ -29,12 +30,18 @@ export function TableToolbar({
   onFiltersChange,
   visibleColumns,
   onVisibleColumnsChange,
+  search,
+  onSearchChange,
+  resultCount,
 }: {
   statuses: Status[];
   filters: TaskFilters;
   onFiltersChange: (filters: TaskFilters) => void;
   visibleColumns: Set<ColumnKey>;
   onVisibleColumnsChange: (columns: Set<ColumnKey>) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  resultCount: number;
 }) {
   const activeFilterCount = filters.priorities.length + filters.statusIds.length;
 
@@ -65,6 +72,34 @@ export function TableToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <div className="relative min-w-0 flex-1 sm:max-w-72">
+        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          type="search"
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search tasks…"
+          aria-label="Search tasks"
+          className="h-8 pl-8 pr-8 text-sm"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => onSearchChange("")}
+            aria-label="Clear search"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3.5" />
+          </button>
+        )}
+      </div>
+
+      {search && (
+        <span className="text-xs text-muted-foreground">
+          {resultCount} match{resultCount === 1 ? "" : "es"}
+        </span>
+      )}
+
       <Popover>
         <PopoverTrigger
           render={
