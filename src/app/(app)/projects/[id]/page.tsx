@@ -43,10 +43,9 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  // Whoever created a project runs it, whatever their role — otherwise a
-  // member who made their own project couldn't manage it at all.
+  // Members add and edit freely (never gated in the UI) but never delete —
+  // they raise delete requests instead, including in projects they created.
   const isStaff = profile?.role === "admin" || profile?.role === "manager";
-  const canManage = isStaff || project.created_by === profile?.id;
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -117,7 +116,7 @@ export default async function ProjectDetailPage({
         members={workspace.members}
         initialCommentCounts={workspace.commentCounts}
         initialLabels={workspace.labels}
-        canManage={canManage}
+        canDelete={isStaff}
         canImport={isStaff}
       />
     </div>

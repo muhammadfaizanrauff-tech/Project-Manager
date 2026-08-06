@@ -41,7 +41,7 @@ export function TableView({
   categories,
   tasks,
   statuses,
-  canManage,
+  canDelete,
   commentCounts,
   onCategoriesChange,
   onTasksChange,
@@ -52,7 +52,7 @@ export function TableView({
   categories: CategoryRecord[];
   tasks: TaskRecord[];
   statuses: Status[];
-  canManage: boolean;
+  canDelete: boolean;
   commentCounts: Record<string, number>;
   onCategoriesChange: (categories: CategoryRecord[]) => void;
   onTasksChange: (tasks: TaskRecord[]) => void;
@@ -265,7 +265,7 @@ export function TableView({
                 </div>
                 <div className="flex items-center gap-3">
                   <CategoryDonut tasks={groupTasks} statuses={statuses} />
-                  {canManage && category.id !== UNCATEGORIZED.id && (
+                  {canDelete && category.id !== UNCATEGORIZED.id && (
                     <span
                       role="button"
                       tabIndex={0}
@@ -393,7 +393,7 @@ export function TableView({
                                   </button>
                                 </td>
                               )}
-                              {canManage ? (
+                              {canDelete ? (
                                 <td className="px-3 py-2">
                                   <button
                                     onClick={() => handleDeleteTask(task)}
@@ -523,7 +523,7 @@ export function TableView({
                 </option>
               ))}
             </select>
-            {canManage ? (
+            {canDelete ? (
               <Button size="sm" variant="destructive" onClick={bulkDelete}>
                 <Trash2 className="size-3.5" />
                 Delete

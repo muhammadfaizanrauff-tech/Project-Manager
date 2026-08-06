@@ -34,7 +34,7 @@ export function ProjectWorkspace({
   members,
   initialCommentCounts,
   initialLabels,
-  canManage,
+  canDelete,
   canImport,
 }: {
   projectId: string;
@@ -45,7 +45,7 @@ export function ProjectWorkspace({
   members: { id: string; full_name: string | null; role: string }[];
   initialCommentCounts: Record<string, number>;
   initialLabels: { id: string; project_id: string; name: string; color: string }[];
-  canManage: boolean;
+  canDelete: boolean;
   canImport: boolean;
 }) {
   const [categories, setCategories] = useState(initialCategories);
@@ -161,7 +161,7 @@ export function ProjectWorkspace({
           categories={categories}
           tasks={tasks}
           statuses={statuses}
-          canManage={canManage}
+          canDelete={canDelete}
           commentCounts={commentCounts}
           onCategoriesChange={setCategories}
           onTasksChange={setTasks}
@@ -195,7 +195,7 @@ export function ProjectWorkspace({
         members={members}
         allTasks={tasks}
         projectLabels={labels}
-        canDelete={canManage}
+        canDelete={canDelete}
         onOpenChange={(open) => !open && setSelectedTaskId(null)}
         onTaskChange={updateTaskLocal}
         onCommentsChange={(comments) => {
