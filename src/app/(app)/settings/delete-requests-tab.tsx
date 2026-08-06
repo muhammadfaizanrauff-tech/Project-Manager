@@ -5,6 +5,7 @@ import { Check, Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { HelpTip } from "@/components/help-tip";
+import { SettingsSection } from "./settings-section";
 import { approveDeleteRequest, rejectDeleteRequest } from "./actions";
 
 export type DeleteRequestRow = {
@@ -40,16 +41,20 @@ export function DeleteRequestsTab({ requests }: { requests: DeleteRequestRow[] }
   }
 
   return (
-    <div className="flex max-w-lg flex-col gap-3">
-      <p className="text-sm text-muted-foreground">
-        Members can&apos;t delete tasks or projects themselves — they file a request here instead.
-        Nothing is removed until you approve it.
-        <HelpTip topic="requests" className="ml-1 align-text-bottom">
-          Approving a <strong>project</strong> request deletes the project and everything in it.
-          Approving a <strong>task</strong> request deletes just that task. Rejecting leaves
-          everything untouched.
-        </HelpTip>
-      </p>
+    <SettingsSection
+      title="Delete requests"
+      description={
+        <>
+          Members can&apos;t delete tasks or projects themselves — they file a request here
+          instead. Nothing is removed until you approve it.
+          <HelpTip topic="requests" className="ml-1 align-text-bottom">
+            Approving a <strong>project</strong> request deletes the project and everything in it.
+            Approving a <strong>task</strong> request deletes just that task. Rejecting leaves
+            everything untouched.
+          </HelpTip>
+        </>
+      }
+    >
       <div className="flex flex-col gap-2 rounded-2xl border p-3">
       {list.map((request) => (
         <div
@@ -102,6 +107,6 @@ export function DeleteRequestsTab({ requests }: { requests: DeleteRequestRow[] }
         <p className="px-2 py-1.5 text-sm text-muted-foreground">No pending delete requests.</p>
       )}
       </div>
-    </div>
+    </SettingsSection>
   );
 }

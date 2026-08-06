@@ -26,6 +26,7 @@ import { HelpTip } from "@/components/help-tip";
 // audit-labels rather than audit: this is a Client Component, and
 // src/lib/audit.ts is server-only (it holds the service-role writer).
 import { AUDIT_LABELS, auditCategory, type AuditEntry } from "@/lib/audit-labels";
+import { SettingsSection } from "./settings-section";
 import { fetchAuditForUser } from "./activity-actions";
 
 const CATEGORY_STYLES: Record<
@@ -186,9 +187,11 @@ export function ActivityTab({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="flex max-w-2xl items-start gap-1.5 text-sm text-muted-foreground">
+    <SettingsSection
+      title="My activity"
+      width="wide"
+      description={
+        <span className="flex items-start gap-1.5">
           <Lock className="mt-0.5 size-3.5 shrink-0" />
           <span>
             {isAdmin ? (
@@ -209,9 +212,10 @@ export function ActivityTab({
               work, not a supervision tool.
             </HelpTip>
           </span>
-        </p>
-
-        {isAdmin && people.length > 0 && (
+        </span>
+      }
+      action={
+        isAdmin && people.length > 0 ? (
           <Select value={selectedUser} onValueChange={(v) => chooseUser(v ?? "me")}>
             <SelectTrigger className="h-8 w-56 text-sm">
               <SelectValue />
@@ -225,9 +229,9 @@ export function ActivityTab({
               ))}
             </SelectContent>
           </Select>
-        )}
-      </div>
-
+        ) : undefined
+      }
+    >
       {pending ? (
         <Card className="flex items-center justify-center gap-2 rounded-2xl py-12 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
@@ -236,6 +240,6 @@ export function ActivityTab({
       ) : (
         <EntryList entries={selectedUser === "me" ? entries : otherEntries} />
       )}
-    </div>
+    </SettingsSection>
   );
 }

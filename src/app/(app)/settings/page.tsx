@@ -59,8 +59,10 @@ export default async function SettingsPage() {
   ]);
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
+    <div className="flex flex-1 flex-col gap-5">
       <FadeIn>
+        {/* No subtitle here any more — every tab now states what it's for in
+            its own SettingsSection header, so a generic one just doubled up. */}
         <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
           Settings
           <HelpTip topic="settings" side="right">
@@ -68,9 +70,6 @@ export default async function SettingsPage() {
             workflow statuses, import history and pending requests.
           </HelpTip>
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your profile{role !== "member" ? ", team, and workspace options" : ""}.
-        </p>
       </FadeIn>
 
       <SettingsTabs

@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { HelpTip } from "@/components/help-tip";
 import { MultiSelect, type MultiSelectOption } from "@/components/multi-select";
+import { SettingsSection } from "./settings-section";
 import type { OrganizationDetail } from "@/lib/organizations";
 import {
   createOrganization,
@@ -301,9 +302,11 @@ export function OrganizationsTab({
   people: PersonOption[];
 }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm text-muted-foreground">
+    <SettingsSection
+      title="Organizations"
+      width="wide"
+      description={
+        <>
           An organization is one of the companies you run. It decides{" "}
           <strong>who can see whom</strong>: a Manager placed in an organization sees that
           organization&apos;s people when staffing a project, and nobody outside it. Projects live
@@ -312,7 +315,9 @@ export function OrganizationsTab({
             Organizations are the top of the hierarchy: Organization → Projects → Categories →
             Tasks. Only you (the Admin) can create them or change who&apos;s in them.
           </HelpTip>
-        </p>
+        </>
+      }
+      action={
         <OrgFormDialog
           title="Create an organization"
           trigger={
@@ -327,7 +332,8 @@ export function OrganizationsTab({
             return result ?? {};
           }}
         />
-      </div>
+      }
+    >
 
       {organizations.length === 0 && (
         <Card className="flex flex-col items-center gap-2 rounded-2xl border-dashed py-12 text-center">
@@ -424,6 +430,6 @@ export function OrganizationsTab({
           </Card>
         ))}
       </div>
-    </div>
+    </SettingsSection>
   );
 }

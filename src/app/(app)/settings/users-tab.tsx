@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { HelpTip } from "@/components/help-tip";
 import { MultiSelect } from "@/components/multi-select";
+import { SettingsSection } from "./settings-section";
 import type { ManagedUser } from "@/lib/users-admin";
 import { startImpersonation } from "../impersonate-actions";
 import {
@@ -576,25 +577,28 @@ export function UsersTab({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="flex max-w-2xl items-start gap-1.5 text-sm text-muted-foreground">
+    <SettingsSection
+      title="Users"
+      width="wide"
+      action={<AddUserDialog role={role} organizations={organizations} />}
+      description={
+        <>
           {role === "admin" ? (
-            <span>Everyone in the workspace, across every organization.</span>
+            "Everyone in the workspace, across every organization."
           ) : (
-            <span>
+            <>
               Everyone in your organizations. You can reset and switch into the{" "}
               <strong>members</strong> among them; fellow managers are listed so you can assign
               them to projects, but their accounts are not yours to touch.
-            </span>
+            </>
           )}
-          <HelpTip topic="roles">
+          <HelpTip topic="roles" className="ml-1 align-text-bottom">
             Three roles: Admin (everything), Manager (their organizations&apos; people and their
             assigned projects), Member (only the projects they&apos;re put on).
           </HelpTip>
-        </p>
-        <AddUserDialog role={role} organizations={organizations} />
-      </div>
+        </>
+      }
+    >
 
       {/* Mobile: one card per person. The 7-column table needs 760px, which is
           twice a phone's width — scrolled sideways it's unreadable. */}
@@ -797,6 +801,6 @@ export function UsersTab({
           </tbody>
         </table>
       </div>
-    </div>
+    </SettingsSection>
   );
 }

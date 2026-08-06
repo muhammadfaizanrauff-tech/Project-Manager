@@ -61,10 +61,18 @@ export function SettingsTabs({
           pushes the actual settings off-screen, so below sm they scroll
           sideways as one strip instead. */}
       <TabsList className="no-scrollbar h-auto w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto bg-muted/60 p-1 [&>*]:shrink-0 sm:flex-wrap">
+        {/* Ordered in three runs — yours, then the workspace you administer,
+            then the queues waiting on your approval. The old order interleaved
+            all three, so the strip read as nine unrelated items. */}
         <TabsTrigger value="profile" className="gap-1.5">
           <User className="size-3.5" />
           Profile
         </TabsTrigger>
+        <TabsTrigger value="activity" className="gap-1.5">
+          <Activity className="size-3.5" />
+          My Activity
+        </TabsTrigger>
+
         {isAdmin && (
           <TabsTrigger value="organizations" className="gap-1.5">
             <Building2 className="size-3.5" />
@@ -77,10 +85,17 @@ export function SettingsTabs({
             Users
           </TabsTrigger>
         )}
-        <TabsTrigger value="activity" className="gap-1.5">
-          <Activity className="size-3.5" />
-          My Activity
+        {role === "admin" && (
+          <TabsTrigger value="statuses" className="gap-1.5">
+            <Palette className="size-3.5" />
+            Statuses
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="meetings" className="gap-1.5">
+          <Video className="size-3.5" />
+          Meeting Links
         </TabsTrigger>
+
         {canManageUsers && (
           <TabsTrigger value="imports" className="gap-1.5">
             <FileUp className="size-3.5" />
@@ -90,12 +105,6 @@ export function SettingsTabs({
                 {importBatches.length}
               </span>
             )}
-          </TabsTrigger>
-        )}
-        {role === "admin" && (
-          <TabsTrigger value="statuses" className="gap-1.5">
-            <Palette className="size-3.5" />
-            Statuses
           </TabsTrigger>
         )}
         {role === "admin" && (
@@ -120,10 +129,6 @@ export function SettingsTabs({
             )}
           </TabsTrigger>
         )}
-        <TabsTrigger value="meetings" className="gap-1.5">
-          <Video className="size-3.5" />
-          Meeting Links
-        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="profile" className="pt-4">

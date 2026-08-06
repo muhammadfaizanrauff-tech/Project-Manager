@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { HelpTip } from "@/components/help-tip";
+import { SettingsSection } from "./settings-section";
 import type { ImportBatch } from "@/lib/imports";
 
 function formatTimestamp(value: string) {
@@ -46,16 +47,20 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
   const totalTasks = batches.reduce((sum, b) => sum + b.created_count, 0);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="max-w-2xl text-sm text-muted-foreground">
+    <SettingsSection
+      title="Import history"
+      width="wide"
+      description={
+        <>
           Every CSV and Excel import ever run, with the file name, the exact time, who ran it and
           how many tasks it created. Open one to see only the tasks that came in with it.
           <HelpTip topic="import-history" className="ml-1 align-text-bottom">
             Each import is recorded as a batch, and every task it created is tagged with that
             batch — so you can always trace a task back to the file it arrived in.
           </HelpTip>
-        </p>
+        </>
+      }
+      action={
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>
             <strong className="text-foreground">{batches.length}</strong> import
@@ -66,8 +71,8 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
             <strong className="text-foreground">{totalTasks}</strong> tasks created
           </span>
         </div>
-      </div>
-
+      }
+    >
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -227,6 +232,6 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
         </div>
         </>
       )}
-    </div>
+    </SettingsSection>
   );
 }

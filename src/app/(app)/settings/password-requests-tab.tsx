@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Check, Eye, EyeOff, Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { SettingsSection } from "./settings-section";
 import {
   approvePasswordRequest,
   rejectPasswordRequest,
@@ -71,12 +72,10 @@ export function PasswordRequestsTab({ requests }: { requests: PasswordRequestRow
   }
 
   return (
-    <div className="flex max-w-xl flex-col gap-2">
-      <p className="text-sm text-muted-foreground">
-        When someone changes their own password it waits here. Their old
-        password keeps working until you approve.
-      </p>
-
+    <SettingsSection
+      title="Password requests"
+      description="When someone changes their own password it waits here. Their old password keeps working until you approve."
+    >
       <div className="flex flex-col gap-2 rounded-2xl border p-3">
         {list.map((request) => (
           <div
@@ -132,6 +131,6 @@ export function PasswordRequestsTab({ requests }: { requests: PasswordRequestRow
           {error}
         </p>
       )}
-    </div>
+    </SettingsSection>
   );
 }

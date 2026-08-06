@@ -5,6 +5,7 @@ import { ExternalLink, Loader2, Plus, Trash2, Video } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SettingsSection } from "./settings-section";
 import { createMeetingLink, deleteMeetingLink } from "./actions";
 
 type MeetingLink = { id: string; label: string; url: string };
@@ -41,7 +42,14 @@ export function MeetingLinksTab({
   }
 
   return (
-    <div className="flex max-w-lg flex-col gap-4">
+    <SettingsSection
+      title="Meeting links"
+      description={
+        canManage
+          ? "Shared links to your recurring calls — standups, reviews, anything the team joins regularly. Everyone in the workspace can see and open them."
+          : "Shared links to your team's recurring calls. Your Admin or Manager keeps this list."
+      }
+    >
       <div className="flex flex-col gap-2 rounded-2xl border p-3">
         {list.map((link) => (
           <div key={link.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted">
@@ -71,19 +79,19 @@ export function MeetingLinksTab({
       </div>
 
       {canManage && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Label (e.g. Daily standup)"
           />
           <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" />
-          <Button size="sm" onClick={handleAdd} disabled={pending}>
+          <Button size="sm" className="sm:shrink-0" onClick={handleAdd} disabled={pending}>
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
             Add
           </Button>
         </div>
       )}
-    </div>
+    </SettingsSection>
   );
 }

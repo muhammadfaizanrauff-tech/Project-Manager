@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SettingsSection } from "./settings-section";
 import { updateOwnProfile } from "./actions";
 
 export function ProfileTab({
@@ -32,7 +33,10 @@ export function ProfileTab({
   }
 
   return (
-    <div className="flex max-w-md flex-col gap-4">
+    <SettingsSection
+      title="Your profile"
+      description="Your name as everyone else sees it, and the password you sign in with."
+    >
       <Card className="gap-4 rounded-2xl p-5 shadow-sm">
         <div className="flex flex-col gap-1.5">
           <Label>Email</Label>
@@ -72,6 +76,6 @@ export function ProfileTab({
           </p>
         )}
       </Card>
-    </div>
+    </SettingsSection>
   );
 }
