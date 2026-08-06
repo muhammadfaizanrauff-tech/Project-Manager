@@ -1,5 +1,8 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
+import { ChevronDownIcon } from "lucide-react";
+
 import {
   Select,
   SelectContent,
@@ -9,6 +12,49 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { Status } from "@/lib/tasks";
+
+// A table row for every task means these dropdowns get mounted hundreds of
+// times, and a Select is expensive: context, refs, ids, portal wiring. Until
+// someone actually clicks one, render a plain <button> painted to match the
+// real SelectTrigger — same pill, same padding, same chevron — then swap in
+// the actual Select already open. It still takes a single click, and only the
+// handful of rows you touch ever pay the cost.
+//
+// The classes below intentionally mirror SelectTrigger's, so an activated row
+// and an untouched one look identical side by side.
+function LazyChipSelect({
+  label,
+  className,
+  style,
+  disabled,
+  children,
+}: {
+  label: string;
+  className?: string;
+  style?: React.CSSProperties;
+  disabled?: boolean;
+  children: (props: { defaultOpen: boolean }) => ReactNode;
+}) {
+  const [activated, setActivated] = useState(false);
+
+  if (activated) return <>{children({ defaultOpen: true })}</>;
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => setActivated(true)}
+      style={style}
+      className={cn(
+        "flex w-fit items-center justify-between gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs outline-none select-none disabled:cursor-not-allowed disabled:opacity-50",
+        className,
+      )}
+    >
+      {label}
+      <ChevronDownIcon className="pointer-events-none size-4 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
 
 export const PRIORITY_STYLES: Record<
   "high" | "medium" | "low",
@@ -56,26 +102,39 @@ export function PrioritySelect({
 }) {
   const style = PRIORITY_STYLES[value];
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as typeof value)} disabled={disabled}>
-      <SelectTrigger
-        size="sm"
-        className={cn(
-          "h-auto w-auto gap-1 rounded-full border-none px-2 py-0.5 text-xs font-medium shadow-none",
-          style.className,
-        )}
-      >
-        <SelectValue>{style.label}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {(Object.keys(PRIORITY_STYLES) as Array<keyof typeof PRIORITY_STYLES>).map(
-          (key) => (
-            <SelectItem key={key} value={key}>
-              <PriorityChip priority={key} />
-            </SelectItem>
-          ),
-        )}
-      </SelectContent>
-    </Select>
+    <LazyChipSelect
+      label={style.label}
+      className={cn("font-medium", style.className)}
+      disabled={disabled}
+    >
+      {({ defaultOpen }) => (
+        <Select
+          defaultOpen={defaultOpen}
+          value={value}
+          onValueChange={(v) => onChange(v as typeof value)}
+          disabled={disabled}
+        >
+          <SelectTrigger
+            size="sm"
+            className={cn(
+              "h-auto w-auto gap-1 rounded-full border-none px-2 py-0.5 text-xs font-medium shadow-none",
+              style.className,
+            )}
+          >
+            <SelectValue>{style.label}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(PRIORITY_STYLES) as Array<keyof typeof PRIORITY_STYLES>).map(
+              (key) => (
+                <SelectItem key={key} value={key}>
+                  <PriorityChip priority={key} />
+                </SelectItem>
+              ),
+            )}
+          </SelectContent>
+        </Select>
+      )}
+    </LazyChipSelect>
   );
 }
 
@@ -118,25 +177,35 @@ export function StatusSelect({
   const current = statuses.find((s) => s.id === value);
 
   return (
-    <Select
-      value={value ?? undefined}
-      onValueChange={(v) => v && onChange(v)}
+    <LazyChipSelect
+      label={current?.label ?? "No status"}
+      className={cn("font-semibold", !current && "bg-muted text-muted-foreground")}
+      style={current ? statusChipStyle(current.color) : undefined}
       disabled={disabled}
     >
-      <SelectTrigger
-        size="sm"
-        className="h-auto w-auto gap-1 rounded-full border-none px-2 py-0.5 text-xs font-semibold shadow-none"
-        style={current ? statusChipStyle(current.color) : undefined}
-      >
-        <SelectValue placeholder="No status">{current?.label ?? "No status"}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {statuses.map((status) => (
-          <SelectItem key={status.id} value={status.id}>
-            <StatusChip status={status} />
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      {({ defaultOpen }) => (
+        <Select
+          defaultOpen={defaultOpen}
+          value={value ?? undefined}
+          onValueChange={(v) => v && onChange(v)}
+          disabled={disabled}
+        >
+          <SelectTrigger
+            size="sm"
+            className="h-auto w-auto gap-1 rounded-full border-none px-2 py-0.5 text-xs font-semibold shadow-none"
+            style={current ? statusChipStyle(current.color) : undefined}
+          >
+            <SelectValue placeholder="No status">{current?.label ?? "No status"}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {statuses.map((status) => (
+              <SelectItem key={status.id} value={status.id}>
+                <StatusChip status={status} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </LazyChipSelect>
   );
 }
