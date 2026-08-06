@@ -1,11 +1,12 @@
 "use client";
 
-import { Palette, Trash2, User, Users, Video } from "lucide-react";
+import { KeyRound, Palette, Trash2, User, Users, Video } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ManagedUser } from "@/lib/users-admin";
 import { DeleteRequestsTab, type DeleteRequestRow } from "./delete-requests-tab";
 import { MeetingLinksTab } from "./meeting-links-tab";
+import { PasswordRequestsTab, type PasswordRequestRow } from "./password-requests-tab";
 import { ProfileTab } from "./profile-tab";
 import { StatusesTab } from "./statuses-tab";
 import { UsersTab } from "./users-tab";
@@ -18,6 +19,7 @@ export function SettingsTabs({
   statuses,
   meetingLinks,
   deleteRequests,
+  passwordRequests,
 }: {
   role: string;
   currentUserId: string;
@@ -26,6 +28,7 @@ export function SettingsTabs({
   statuses: { id: string; label: string; color: string; position: number }[];
   meetingLinks: { id: string; label: string; url: string }[];
   deleteRequests: DeleteRequestRow[];
+  passwordRequests: PasswordRequestRow[];
 }) {
   const canManageUsers = role === "admin" || role === "manager";
 
@@ -59,6 +62,17 @@ export function SettingsTabs({
             )}
           </TabsTrigger>
         )}
+        {role === "admin" && (
+          <TabsTrigger value="password-requests" className="gap-1.5">
+            <KeyRound className="size-3.5" />
+            Password Requests
+            {passwordRequests.length > 0 && (
+              <span className="ml-0.5 rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
+                {passwordRequests.length}
+              </span>
+            )}
+          </TabsTrigger>
+        )}
         <TabsTrigger value="meetings" className="gap-1.5">
           <Video className="size-3.5" />
           Meeting Links
@@ -88,6 +102,12 @@ export function SettingsTabs({
       {role === "admin" && (
         <TabsContent value="delete-requests" className="pt-4">
           <DeleteRequestsTab requests={deleteRequests} />
+        </TabsContent>
+      )}
+
+      {role === "admin" && (
+        <TabsContent value="password-requests" className="pt-4">
+          <PasswordRequestsTab requests={passwordRequests} />
         </TabsContent>
       )}
 

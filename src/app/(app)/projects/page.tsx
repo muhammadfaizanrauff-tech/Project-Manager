@@ -9,11 +9,13 @@ import { ProjectsGrid } from "./projects-grid";
 
 export default async function ProjectsPage() {
   const [profile, user] = await Promise.all([getCurrentProfile(), getCurrentUser()]);
-  const canCreate = profile?.role === "admin" || profile?.role === "manager";
+  // Anyone can create a project; only Admins/Managers can staff it with
+  // other people, so members never see the manager/members pickers.
+  const canAssignPeople = profile?.role === "admin" || profile?.role === "manager";
 
   const [projects, profiles, favoriteIds] = await Promise.all([
     listProjects(),
-    canCreate ? listAssignableProfiles() : Promise.resolve([]),
+    canAssignPeople ? listAssignableProfiles() : Promise.resolve([]),
     user ? listFavoriteProjectIds(user.id) : Promise.resolve([]),
   ]);
 
@@ -28,16 +30,14 @@ export default async function ProjectsPage() {
               : `${projects.length} project${projects.length === 1 ? "" : "s"}`}
           </p>
         </div>
-        {canCreate && <NewProjectDialog profiles={profiles} />}
+        <NewProjectDialog profiles={profiles} canAssignPeople={canAssignPeople} />
       </FadeIn>
 
       {projects.length === 0 ? (
         <Card className="flex flex-col items-center justify-center gap-3 rounded-2xl border-dashed py-16 text-center">
           <EmptyIllustration className="h-28 w-auto" />
           <p className="max-w-sm text-sm text-muted-foreground">
-            {canCreate
-              ? "Create your first project to start organizing tasks."
-              : "You haven't been assigned to any projects yet."}
+            Create your first project to start organizing tasks.
           </p>
         </Card>
       ) : (

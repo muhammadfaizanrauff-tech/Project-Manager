@@ -3,6 +3,7 @@ import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { listManagedUsers } from "@/lib/users-admin";
 import type { DeleteRequestRow } from "./delete-requests-tab";
+import type { PasswordRequestRow } from "./password-requests-tab";
 import { SettingsTabs } from "./settings-tabs";
 
 export default async function SettingsPage() {
@@ -11,7 +12,7 @@ export default async function SettingsPage() {
 
   const supabase = await createClient();
 
-  const [users, statuses, meetingLinksRes, deleteRequestsRes] = await Promise.all([
+  const [users, statuses, meetingLinksRes, deleteRequestsRes, passwordRequestsRes] = await Promise.all([
     role === "admin" || role === "manager"
       ? listManagedUsers(role)
       : Promise.resolve([]),
@@ -27,6 +28,13 @@ export default async function SettingsPage() {
       ? supabase
           .from("delete_requests")
           .select("id, task_name, created_at, project:project_id(id, name), requester:requested_by(full_name)")
+          .eq("status", "pending")
+          .order("created_at")
+      : Promise.resolve({ data: [] }),
+    role === "admin"
+      ? supabase
+          .from("password_change_requests")
+          .select("id, created_at, user:user_id(id, full_name)")
           .eq("status", "pending")
           .order("created_at")
       : Promise.resolve({ data: [] }),
@@ -52,6 +60,7 @@ export default async function SettingsPage() {
         statuses={statuses.data ?? []}
         meetingLinks={meetingLinksRes.data ?? []}
         deleteRequests={(deleteRequestsRes.data ?? []) as unknown as DeleteRequestRow[]}
+        passwordRequests={(passwordRequestsRes.data ?? []) as unknown as PasswordRequestRow[]}
       />
     </div>
   );

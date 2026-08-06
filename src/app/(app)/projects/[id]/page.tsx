@@ -43,7 +43,10 @@ export default async function ProjectDetailPage({
 
   if (!project) notFound();
 
-  const canManage = profile?.role === "admin" || profile?.role === "manager";
+  // Whoever created a project runs it, whatever their role — otherwise a
+  // member who made their own project couldn't manage it at all.
+  const isStaff = profile?.role === "admin" || profile?.role === "manager";
+  const canManage = isStaff || project.created_by === profile?.id;
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -84,7 +87,7 @@ export default async function ProjectDetailPage({
                 +{project.members.length - 5} more
               </span>
             )}
-            {canManage && <CloneProjectButton projectId={project.id} />}
+            {isStaff && <CloneProjectButton projectId={project.id} />}
           </div>
         </div>
 
@@ -115,6 +118,7 @@ export default async function ProjectDetailPage({
         initialCommentCounts={workspace.commentCounts}
         initialLabels={workspace.labels}
         canManage={canManage}
+        canImport={isStaff}
       />
     </div>
   );

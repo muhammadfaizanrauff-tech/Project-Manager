@@ -20,15 +20,22 @@ export async function createProject(
   const user = await getCurrentUser();
   const profile = await getCurrentProfile();
 
-  if (!user || !profile || (profile.role !== "admin" && profile.role !== "manager")) {
-    return { error: "Only Admins and Managers can create projects." };
+  if (!user || !profile) {
+    return { error: "You need to be signed in to create a project." };
   }
 
+  // Anyone can create a project and owns what they create. Only Admins and
+  // Managers get to hand it to a manager or staff it with other people —
+  // ignore those fields for members rather than trusting the form.
+  const canAssignPeople = profile.role === "admin" || profile.role === "manager";
+
   const name = String(formData.get("name") ?? "").trim();
-  const managerId = String(formData.get("managerId") ?? "") || null;
+  const managerId = canAssignPeople ? String(formData.get("managerId") ?? "") || null : null;
   const startDate = String(formData.get("startDate") ?? "") || undefined;
   const endDate = String(formData.get("endDate") ?? "") || null;
-  const memberIds = formData.getAll("memberIds").map(String).filter(Boolean);
+  const memberIds = canAssignPeople
+    ? formData.getAll("memberIds").map(String).filter(Boolean)
+    : [];
   const logo = formData.get("logo");
 
   if (!name) {

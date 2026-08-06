@@ -133,9 +133,14 @@ export function ChangePasswordForm({
           </p>
         )}
 
+        <p className="text-xs text-muted-foreground">
+          Your Admin approves password changes. Keep using your current password
+          until they do.
+        </p>
+
         <Button type="submit" disabled={pending} className="w-full">
           {pending && <Loader2 className="size-4 animate-spin" />}
-          Update password
+          Request password change
         </Button>
       </form>
     );

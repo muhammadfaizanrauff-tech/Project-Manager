@@ -173,6 +173,69 @@ export async function rejectDeleteRequest(requestId: string) {
   return { ok: true };
 }
 
+// ── Password change requests ────────────────────────────────────────────
+// Users can't change their own password directly — they file a request here
+// (see src/app/change-password/actions.ts) that the Admin approves.
+export async function revealRequestedPassword(requestId: string) {
+  await requireRole("admin");
+  const service = createServiceClient();
+  const { data, error } = await service
+    .from("password_change_requests")
+    .select("encrypted_password")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (error || !data) return { error: "Request not found." };
+  return { password: decryptPassword(data.encrypted_password) };
+}
+
+export async function approvePasswordRequest(requestId: string) {
+  await requireRole("admin");
+  const service = createServiceClient();
+
+  const { data: request } = await service
+    .from("password_change_requests")
+    .select("user_id, encrypted_password, status")
+    .eq("id", requestId)
+    .maybeSingle();
+  if (!request) return { error: "Request not found." };
+  if (request.status !== "pending") return { error: "That request was already resolved." };
+
+  const { error: updateError } = await service.auth.admin.updateUserById(request.user_id, {
+    password: decryptPassword(request.encrypted_password),
+  });
+  if (updateError) return { error: updateError.message };
+
+  // Keep the Admin-visible copy in sync with what the account now uses.
+  await service.from("credentials").upsert({
+    user_id: request.user_id,
+    encrypted_password: request.encrypted_password,
+    updated_at: new Date().toISOString(),
+  });
+
+  const { error } = await service
+    .from("password_change_requests")
+    .update({ status: "approved", resolved_at: new Date().toISOString() })
+    .eq("id", requestId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function rejectPasswordRequest(requestId: string) {
+  await requireRole("admin");
+  const service = createServiceClient();
+
+  const { error } = await service
+    .from("password_change_requests")
+    .update({ status: "rejected", resolved_at: new Date().toISOString() })
+    .eq("id", requestId);
+  if (error) return { error: error.message };
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
 // ── Meeting links (global) ───────────────────────────────────────────────
 export async function createMeetingLink(label: string, url: string) {
   await requireRole("admin", "manager");

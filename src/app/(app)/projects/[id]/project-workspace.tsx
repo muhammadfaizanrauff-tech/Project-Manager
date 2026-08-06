@@ -35,6 +35,7 @@ export function ProjectWorkspace({
   initialCommentCounts,
   initialLabels,
   canManage,
+  canImport,
 }: {
   projectId: string;
   projectName: string;
@@ -45,6 +46,7 @@ export function ProjectWorkspace({
   initialCommentCounts: Record<string, number>;
   initialLabels: { id: string; project_id: string; name: string; color: string }[];
   canManage: boolean;
+  canImport: boolean;
 }) {
   const [categories, setCategories] = useState(initialCategories);
   const [tasks, setTasks] = useState(initialTasks);
@@ -142,7 +144,7 @@ export function ProjectWorkspace({
 
         {view !== "dashboard" && (
           <div className="flex items-center gap-2">
-            {canManage && <ImportDialog projectId={projectId} />}
+            {canImport && <ImportDialog projectId={projectId} />}
             <ExportMenu
               projectName={projectName}
               categories={categories}

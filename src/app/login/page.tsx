@@ -8,9 +8,14 @@ import { LoginForm } from "./login-form";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; expired?: string }>;
+  searchParams: Promise<{
+    next?: string;
+    expired?: string;
+    passwordChanged?: string;
+    passwordRequested?: string;
+  }>;
 }) {
-  const { next, expired } = await searchParams;
+  const { next, expired, passwordChanged, passwordRequested } = await searchParams;
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -33,6 +38,19 @@ export default async function LoginPage({
             {expired && (
               <p className="rounded-lg bg-muted px-3 py-2 text-center text-sm text-muted-foreground">
                 You were signed out because the browser was closed. Sign in again.
+              </p>
+            )}
+
+            {passwordChanged && (
+              <p className="rounded-lg bg-muted px-3 py-2 text-center text-sm text-muted-foreground">
+                Password updated. Sign in with your new password.
+              </p>
+            )}
+
+            {passwordRequested && (
+              <p className="rounded-lg bg-primary/10 px-3 py-2 text-center text-sm text-primary">
+                Your password change was sent to the Admin for approval. Keep
+                using your current password until they approve it.
               </p>
             )}
 

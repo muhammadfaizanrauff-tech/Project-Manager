@@ -30,7 +30,13 @@ type ProfileOption = { id: string; full_name: string | null; role: string };
 
 const initialState: CreateProjectState = {};
 
-export function NewProjectDialog({ profiles }: { profiles: ProfileOption[] }) {
+export function NewProjectDialog({
+  profiles,
+  canAssignPeople,
+}: {
+  profiles: ProfileOption[];
+  canAssignPeople: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [memberIds, setMemberIds] = useState<string[]>([]);
@@ -92,34 +98,38 @@ export function NewProjectDialog({ profiles }: { profiles: ProfileOption[] }) {
             <Input id="name" name="name" placeholder="Website Redesign" required />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Project manager</Label>
-            <Select name="managerId">
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a manager" />
-              </SelectTrigger>
-              <SelectContent>
-                {managerOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.full_name || "Unnamed user"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {canAssignPeople && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label>Project manager</Label>
+                <Select name="managerId">
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a manager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {managerOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.full_name || "Unnamed user"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Assigned members</Label>
-            <MultiSelect
-              options={memberOptions}
-              selected={memberIds}
-              onChange={setMemberIds}
-              placeholder="Select team members"
-            />
-            {memberIds.map((id) => (
-              <input key={id} type="hidden" name="memberIds" value={id} />
-            ))}
-          </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Assigned members</Label>
+                <MultiSelect
+                  options={memberOptions}
+                  selected={memberIds}
+                  onChange={setMemberIds}
+                  placeholder="Select team members"
+                />
+                {memberIds.map((id) => (
+                  <input key={id} type="hidden" name="memberIds" value={id} />
+                ))}
+              </div>
+            </>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
