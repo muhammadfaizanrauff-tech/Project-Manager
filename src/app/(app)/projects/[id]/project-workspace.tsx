@@ -8,6 +8,7 @@ import { HelpTip } from "@/components/help-tip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
+import { upsertById } from "@/lib/utils";
 import type { ImportBatch } from "@/lib/imports";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import { listComments } from "./comment-actions";
@@ -87,11 +88,7 @@ export function ProjectWorkspace({
             if (payload.eventType === "DELETE") {
               return prev.filter((t) => t.id !== (payload.old as TaskRecord).id);
             }
-            const incoming = payload.new as TaskRecord;
-            const exists = prev.some((t) => t.id === incoming.id);
-            return exists
-              ? prev.map((t) => (t.id === incoming.id ? incoming : t))
-              : [...prev, incoming];
+            return upsertById(prev, payload.new as TaskRecord);
           });
         },
       )
@@ -103,11 +100,7 @@ export function ProjectWorkspace({
             if (payload.eventType === "DELETE") {
               return prev.filter((c) => c.id !== (payload.old as CategoryRecord).id);
             }
-            const incoming = payload.new as CategoryRecord;
-            const exists = prev.some((c) => c.id === incoming.id);
-            return exists
-              ? prev.map((c) => (c.id === incoming.id ? incoming : c))
-              : [...prev, incoming];
+            return upsertById(prev, payload.new as CategoryRecord);
           });
         },
       )

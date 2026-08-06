@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { CategoryDonut } from "@/components/category-donut";
 import { PrioritySelect, StatusSelect } from "@/components/task-chips";
+import { upsertById } from "@/lib/utils";
 import type { ImportBatch } from "@/lib/imports";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import {
@@ -440,7 +441,7 @@ export function TableView({
     startTransition(async () => {
       const result = await createCategory(projectId, name);
       if (result.data) {
-        onCategoriesChange((prev) => [...prev, result.data as CategoryRecord]);
+        onCategoriesChange((prev) => upsertById(prev, result.data as CategoryRecord));
       }
     });
   }
@@ -455,7 +456,7 @@ export function TableView({
         categoryId === UNCATEGORIZED.id ? null : categoryId,
         name,
       );
-      if (result.data) onTasksChange((prev) => [...prev, result.data as TaskRecord]);
+      if (result.data) onTasksChange((prev) => upsertById(prev, result.data as TaskRecord));
     });
   }
 

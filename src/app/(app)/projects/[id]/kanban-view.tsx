@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  useState,
+  useTransition,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   DndContext,
   DragOverlay,
@@ -21,6 +26,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { CalendarDays, MessageSquare, Plus } from "lucide-react";
 
 import { PriorityChip, StatusChip } from "@/components/task-chips";
+import { upsertById } from "@/lib/utils";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import { createTask, updateTask } from "./task-actions";
 
@@ -173,7 +179,9 @@ export function KanbanView({
   tasks: TaskRecord[];
   statuses: Status[];
   commentCounts: Record<string, number>;
-  onTasksChange: (tasks: TaskRecord[]) => void;
+  // Setter-shaped so handlers can update functionally off the latest state
+  // rather than a value captured before an await, matching TableView.
+  onTasksChange: Dispatch<SetStateAction<TaskRecord[]>>;
   onOpenTask: (task: TaskRecord) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -250,7 +258,9 @@ export function KanbanView({
         categoryId === UNCATEGORIZED.id ? null : categoryId,
         name,
       );
-      if (result.data) onTasksChange([...tasks, result.data as TaskRecord]);
+      // Functional, not [...tasks, …]: the closure captured `tasks` before the
+      // await, so a Realtime update landing in between would be dropped.
+      if (result.data) onTasksChange((prev) => upsertById(prev, result.data as TaskRecord));
     });
   }
 
