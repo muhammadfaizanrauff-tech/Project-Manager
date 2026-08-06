@@ -32,6 +32,7 @@ export type AuditAction =
   | "delete_request.create"
   | "delete_request.resolve"
   | "user.create"
+  | "user.update"
   | "user.delete"
   | "password.change"
   | "organization.create"
@@ -83,6 +84,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   "delete_request.create": "Requested a deletion",
   "delete_request.resolve": "Resolved a delete request",
   "user.create": "Created a user",
+  "user.update": "Edited a user",
   "user.delete": "Deleted a user",
   "password.change": "Changed a password",
   "organization.create": "Created an organization",

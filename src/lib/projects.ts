@@ -156,6 +156,7 @@ export type ProjectDetail = {
   created_by: string | null;
   organization_id: string | null;
   organization_name: string | null;
+  organization_logo_url: string | null;
   managers: ProjectPerson[];
   members: { id: string; full_name: string | null; role: string }[];
 };
@@ -165,7 +166,7 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
 
   const { data: project, error } = await supabase
     .from("projects")
-    .select("id, name, logo_url, start_date, end_date, created_by, organization_id, organization:organization_id(name)")
+    .select("id, name, logo_url, start_date, end_date, created_by, organization_id, organization:organization_id(name, logo_url)")
     .eq("id", id)
     .maybeSingle();
 
@@ -179,7 +180,9 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
     managersByProject(supabase, [id]),
   ]);
 
-  const organization = project.organization as unknown as { name: string } | null;
+  const organization = project.organization as unknown as
+    | { name: string; logo_url: string | null }
+    | null;
 
   return {
     id: project.id,
@@ -190,6 +193,7 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
     created_by: project.created_by,
     organization_id: project.organization_id,
     organization_name: organization?.name ?? null,
+    organization_logo_url: organization?.logo_url ?? null,
     managers: managers.get(id) ?? [],
     members: (members ?? []).map(
       (m) => m.profiles as unknown as { id: string; full_name: string | null; role: string },

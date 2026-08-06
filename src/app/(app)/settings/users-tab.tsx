@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Eye, EyeOff, Loader2, LogIn, Plus, Trash2 } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { Eye, EyeOff, Loader2, LogIn, Pencil, Plus, Trash2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { HelpTip } from "@/components/help-tip";
+import { MultiSelect } from "@/components/multi-select";
 import type { ManagedUser } from "@/lib/users-admin";
 import { startImpersonation } from "../impersonate-actions";
 import {
@@ -41,7 +43,10 @@ import {
   createManagedUser,
   deleteManagedUser,
   revealUserPassword,
+  updateManagedUser,
 } from "./actions";
+
+export type OrgOption = { id: string; name: string };
 
 function RoleBadge({ role }: { role: string }) {
   const styles: Record<string, string> = {
@@ -56,12 +61,19 @@ function RoleBadge({ role }: { role: string }) {
   );
 }
 
-function AddUserDialog({ role }: { role: "admin" | "manager" }) {
+function AddUserDialog({
+  role,
+  organizations,
+}: {
+  role: "admin" | "manager";
+  organizations: OrgOption[];
+}) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [newRole, setNewRole] = useState<"manager" | "member">("member");
+  const [organizationIds, setOrganizationIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -70,13 +82,23 @@ function AddUserDialog({ role }: { role: "admin" | "manager" }) {
     setPassword("");
     setFullName("");
     setNewRole("member");
+    setOrganizationIds([]);
     setError(null);
   }
 
   function handleSubmit() {
     setError(null);
     if (!email || !password || !fullName) {
-      setError("All fields are required.");
+      setError("Name, email and password are all required.");
+      return;
+    }
+    // A user in no organization can't be staffed onto anything and won't
+    // appear in any picker, so say that up front rather than letting it be
+    // discovered later.
+    if (role === "admin" && organizationIds.length === 0) {
+      setError(
+        "Pick at least one organization — a user outside every organization can't be assigned to projects.",
+      );
       return;
     }
     startTransition(async () => {
@@ -85,6 +107,7 @@ function AddUserDialog({ role }: { role: "admin" | "manager" }) {
         password,
         fullName,
         role: role === "manager" ? "member" : newRole,
+        organizationIds,
       });
       if ("error" in result) setError(result.error ?? "Could not create user.");
       else {
@@ -123,18 +146,42 @@ function AddUserDialog({ role }: { role: "admin" | "manager" }) {
             />
           </div>
           {role === "admin" && (
-            <div className="flex flex-col gap-1.5">
-              <Label>Role</Label>
-              <Select value={newRole} onValueChange={(v) => setNewRole(v as typeof newRole)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="member">Member</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label>Role</Label>
+                <Select value={newRole} onValueChange={(v) => setNewRole(v as typeof newRole)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="flex items-center gap-1.5">
+                  Organizations
+                  <HelpTip topic="organizations">
+                    Which companies this person belongs to. It decides who can see them when
+                    staffing a project — you can change it later from Edit.
+                  </HelpTip>
+                </Label>
+                <MultiSelect
+                  options={organizations.map((o) => ({ value: o.id, label: o.name }))}
+                  selected={organizationIds}
+                  onChange={setOrganizationIds}
+                  placeholder="Select one or more organizations"
+                />
+              </div>
+            </>
+          )}
+          {role === "manager" && (
+            <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              New users you create join <strong>your organizations</strong> automatically, and are
+              always Members.
+            </p>
           )}
           {error && (
             <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -146,6 +193,206 @@ function AddUserDialog({ role }: { role: "admin" | "manager" }) {
           <Button onClick={handleSubmit} disabled={pending}>
             {pending && <Loader2 className="size-4 animate-spin" />}
             Create user
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Edit an existing account.
+ *
+ * The Admin sees every field. A Manager gets the name only — the dialog is
+ * the same component, just narrower, so there's one place to change rather
+ * than two forms drifting apart. The server enforces the same split, so a
+ * hand-crafted request doesn't get further than the UI does.
+ */
+function EditUserDialog({
+  user,
+  actorRole,
+  organizations,
+}: {
+  user: ManagedUser;
+  actorRole: "admin" | "manager";
+  organizations: OrgOption[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [fullName, setFullName] = useState(user.full_name ?? "");
+  const [email, setEmail] = useState(user.email);
+  const [role, setRole] = useState(user.role);
+  const [organizationIds, setOrganizationIds] = useState<string[]>(user.organization_ids);
+  const [password, setPassword] = useState("");
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user.avatar_url);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const avatarRef = useRef<HTMLInputElement>(null);
+
+  const isAdmin = actorRole === "admin";
+
+  function handleSubmit() {
+    setError(null);
+    if (!fullName.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    if (isAdmin && password && password.length < 8) {
+      setError("A new password needs to be at least 8 characters.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("userId", user.id);
+    formData.set("fullName", fullName);
+    if (isAdmin) {
+      formData.set("email", email);
+      formData.set("role", role);
+      if (password) formData.set("password", password);
+      // The flag, not the ids, is what tells the server to sync — clearing
+      // every organization submits no ids at all.
+      formData.set("syncOrganizations", "1");
+      for (const id of organizationIds) formData.append("organizationIds", id);
+    }
+    const file = avatarRef.current?.files?.[0];
+    if (file) formData.set("avatar", file);
+
+    startTransition(async () => {
+      const result = await updateManagedUser(formData);
+      if (result?.error) setError(result.error);
+      else {
+        setOpen(false);
+        window.location.reload();
+      }
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger
+        render={
+          <button
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            aria-label={`Edit ${user.full_name ?? "user"}`}
+          />
+        }
+      >
+        <Pencil className="size-3.5" />
+        Edit
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit {user.full_name || "user"}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex max-h-[65vh] flex-col gap-3 overflow-y-auto pr-1">
+          <div className="flex items-center gap-4">
+            <Avatar className="size-14">
+              {avatarPreview && <AvatarImage src={avatarPreview} />}
+              <AvatarFallback className="bg-primary/10 text-primary">
+                {(user.full_name ?? "?")
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((p) => p[0]?.toUpperCase())
+                  .join("") || "?"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label>Profile picture</Label>
+              <Input
+                ref={avatarRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="max-w-52 text-xs"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setAvatarPreview(URL.createObjectURL(file));
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label>Full name</Label>
+            <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          </div>
+
+          {isAdmin && (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label className="flex items-center gap-1.5">
+                  Email (their username)
+                  <HelpTip topic="users">
+                    Changing this changes what they sign in with. Tell them before you do.
+                  </HelpTip>
+                </Label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="flex items-center gap-1.5">
+                  Role
+                  <HelpTip topic="roles">
+                    Manager: sees their organizations&apos; people and the projects they&apos;re
+                    assigned to. Member: only the projects they&apos;re put on.
+                  </HelpTip>
+                </Label>
+                <Select value={role} onValueChange={(v) => setRole((v ?? role) as typeof role)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="member">Member</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label className="flex items-center gap-1.5">
+                  Organizations
+                  <HelpTip topic="organizations">
+                    Which companies this person belongs to. Removing them from all of them makes
+                    them invisible in every staffing picker.
+                  </HelpTip>
+                </Label>
+                <MultiSelect
+                  options={organizations.map((o) => ({ value: o.id, label: o.name }))}
+                  selected={organizationIds}
+                  onChange={setOrganizationIds}
+                  placeholder="Not in any organization"
+                />
+                {organizationIds.length === 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    With no organization they can&apos;t be assigned to any project.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label>New password (optional)</Label>
+                <Input
+                  type="text"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave blank to keep the current one"
+                />
+              </div>
+            </>
+          )}
+
+          {error && (
+            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button onClick={handleSubmit} disabled={pending}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            Save changes
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -311,10 +558,12 @@ export function UsersTab({
   role,
   currentUserId,
   users,
+  organizations,
 }: {
   role: "admin" | "manager";
   currentUserId: string;
   users: ManagedUser[];
+  organizations: OrgOption[];
 }) {
   const [, startTransition] = useTransition();
   const [list, setList] = useState(users);
@@ -344,7 +593,7 @@ export function UsersTab({
             assigned projects), Member (only the projects they&apos;re put on).
           </HelpTip>
         </p>
-        <AddUserDialog role={role} />
+        <AddUserDialog role={role} organizations={organizations} />
       </div>
 
       <div className="overflow-x-auto rounded-2xl border">
@@ -357,7 +606,7 @@ export function UsersTab({
               <th className="px-4 py-2 font-medium">Organizations</th>
               {role === "admin" && <th className="px-4 py-2 font-medium">Password</th>}
               <th className="px-4 py-2 font-medium">Switch</th>
-              <th className="w-10 px-4 py-2" />
+              <th className="w-28 px-4 py-2 text-right font-medium">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -366,13 +615,28 @@ export function UsersTab({
 
               return (
                 <tr key={user.id} className="border-t">
-                  <td className="px-4 py-2.5 font-medium">
-                    {user.full_name || "Unnamed"}
-                    {isSelf && (
-                      <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
-                        (you)
+                  <td className="px-4 py-2.5">
+                    <span className="flex items-center gap-2">
+                      <Avatar className="size-7 shrink-0">
+                        {user.avatar_url && <AvatarImage src={user.avatar_url} />}
+                        <AvatarFallback className="text-[10px]">
+                          {(user.full_name ?? "?")
+                            .split(" ")
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((p) => p[0]?.toUpperCase())
+                            .join("") || "?"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">
+                        {user.full_name || "Unnamed"}
+                        {isSelf && (
+                          <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                            (you)
+                          </span>
+                        )}
                       </span>
-                    )}
+                    </span>
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">{user.email}</td>
                   <td className="px-4 py-2.5">
@@ -417,13 +681,21 @@ export function UsersTab({
                     )}
                   </td>
                   <td className="px-4 py-2.5">
-                    {user.manageable && !isSelf ? (
-                      <DeleteUserDialog user={user} onConfirm={() => handleDelete(user)} />
-                    ) : (
-                      !isSelf && (
+                    <span className="flex items-center justify-end gap-3">
+                      {(user.manageable || isSelf) && (
+                        <EditUserDialog
+                          user={user}
+                          actorRole={role}
+                          organizations={organizations}
+                        />
+                      )}
+                      {user.manageable && !isSelf && (
+                        <DeleteUserDialog user={user} onConfirm={() => handleDelete(user)} />
+                      )}
+                      {!user.manageable && !isSelf && (
                         <span className="text-[11px] text-muted-foreground">Read-only</span>
-                      )
-                    )}
+                      )}
+                    </span>
                   </td>
                 </tr>
               );

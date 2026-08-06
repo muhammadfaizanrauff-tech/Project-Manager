@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { recordAudit } from "@/lib/audit";
 import { getCurrentProfile } from "@/lib/auth";
+import { ORG_LOGO_BUCKET, uploadPublicImage } from "@/lib/storage";
 import { createServiceClient } from "@/lib/supabase/service";
 
 /**
@@ -19,19 +20,38 @@ async function requireAdmin() {
   return profile;
 }
 
-export async function createOrganization(input: { name: string; description?: string }) {
+// The dialogs post a FormData so the logo file can ride along with the text
+// fields; a plain object argument can't carry a File across the boundary.
+function readOrgForm(formData: FormData) {
+  return {
+    name: String(formData.get("name") ?? "").trim(),
+    description: String(formData.get("description") ?? "").trim(),
+    logo: formData.get("logo"),
+  };
+}
+
+export async function createOrganization(formData: FormData) {
   const admin = await requireAdmin();
   if (!admin) return { error: "Only the Admin can create organizations." };
 
-  const name = input.name.trim();
+  const input = readOrgForm(formData);
+  const name = input.name;
   if (!name) return { error: "Organization name is required." };
+
+  let logoUrl: string | null = null;
+  if (input.logo instanceof File && input.logo.size > 0) {
+    const upload = await uploadPublicImage(ORG_LOGO_BUCKET, input.logo);
+    if (upload.error) return { error: upload.error };
+    logoUrl = upload.url ?? null;
+  }
 
   const service = createServiceClient();
   const { data, error } = await service
     .from("organizations")
     .insert({
       name,
-      description: input.description?.trim() || null,
+      description: input.description || null,
+      logo_url: logoUrl,
       created_by: admin.id,
     })
     .select("id")
@@ -59,22 +79,38 @@ export async function createOrganization(input: { name: string; description?: st
   return { ok: true, id: data.id };
 }
 
-export async function updateOrganization(input: {
-  id: string;
-  name: string;
-  description?: string;
-}) {
+export async function updateOrganization(formData: FormData) {
   const admin = await requireAdmin();
   if (!admin) return { error: "Only the Admin can edit organizations." };
 
-  const name = input.name.trim();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { error: "Missing organization." };
+
+  const input = readOrgForm(formData);
+  const name = input.name;
   if (!name) return { error: "Organization name is required." };
+
+  // An empty file input means "keep the current logo", not "clear it" —
+  // clearing is an explicit checkbox instead, so re-saving the name can never
+  // wipe the logo by accident.
+  let logoUrl: string | null | undefined;
+  if (String(formData.get("removeLogo") ?? "") === "1") {
+    logoUrl = null;
+  } else if (input.logo instanceof File && input.logo.size > 0) {
+    const upload = await uploadPublicImage(ORG_LOGO_BUCKET, input.logo);
+    if (upload.error) return { error: upload.error };
+    logoUrl = upload.url;
+  }
 
   const service = createServiceClient();
   const { error } = await service
     .from("organizations")
-    .update({ name, description: input.description?.trim() || null })
-    .eq("id", input.id);
+    .update({
+      name,
+      description: input.description || null,
+      ...(logoUrl !== undefined ? { logo_url: logoUrl } : {}),
+    })
+    .eq("id", id);
 
   if (error) return { error: error.message };
 
@@ -82,7 +118,7 @@ export async function updateOrganization(input: {
     actorId: admin.id,
     action: "organization.update",
     entityType: "organization",
-    entityId: input.id,
+    entityId: id,
     entityName: name,
   });
 

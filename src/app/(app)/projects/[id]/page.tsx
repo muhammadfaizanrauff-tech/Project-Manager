@@ -132,7 +132,16 @@ export default async function ProjectDetailPage({
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
           {project.organization_name && (
             <span className="flex items-center gap-1.5">
-              <Building2 className="size-3.5" />
+              {project.organization_logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={project.organization_logo_url}
+                  alt=""
+                  className="size-4 rounded object-contain"
+                />
+              ) : (
+                <Building2 className="size-3.5" />
+              )}
               {project.organization_name}
               <HelpTip topic="organizations">
                 The organization this project belongs to. Only people in it can be staffed onto

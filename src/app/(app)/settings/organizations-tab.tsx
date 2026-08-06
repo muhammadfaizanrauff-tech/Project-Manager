@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Building2, Loader2, Pencil, Plus, Trash2, Users } from "lucide-react";
 
 import {
@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -48,14 +49,19 @@ function OrgFormDialog({
 }: {
   trigger: React.ReactNode;
   title: string;
-  initial?: { name: string; description: string };
-  onSubmit: (values: { name: string; description: string }) => Promise<{ error?: string }>;
+  initial?: { id?: string; name: string; description: string; logoUrl: string | null };
+  onSubmit: (formData: FormData) => Promise<{ error?: string }>;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  // null = show the existing logo (or the placeholder); a string = a freshly
+  // picked file being previewed; "" = the user explicitly cleared it.
+  const [logoPreview, setLogoPreview] = useState<string | null>(initial?.logoUrl ?? null);
+  const [removeLogo, setRemoveLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function handleSubmit() {
     setError(null);
@@ -63,8 +69,19 @@ function OrgFormDialog({
       setError("Give the organization a name.");
       return;
     }
+
+    // FormData rather than a plain object: a File can't cross the Server
+    // Action boundary any other way.
+    const formData = new FormData();
+    if (initial?.id) formData.set("id", initial.id);
+    formData.set("name", name);
+    formData.set("description", description);
+    if (removeLogo) formData.set("removeLogo", "1");
+    const file = fileRef.current?.files?.[0];
+    if (file) formData.set("logo", file);
+
     startTransition(async () => {
-      const result = await onSubmit({ name, description });
+      const result = await onSubmit(formData);
       if (result?.error) setError(result.error);
       else setOpen(false);
     });
@@ -78,6 +95,51 @@ function OrgFormDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-4">
+            <Avatar className="size-16 rounded-xl" size="lg">
+              {logoPreview && !removeLogo && (
+                <AvatarImage src={logoPreview} className="rounded-xl object-contain" />
+              )}
+              <AvatarFallback className="rounded-xl bg-primary/10 text-primary">
+                <Building2 className="size-6" />
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label className="flex items-center gap-1.5">
+                Organization logo
+                <HelpTip topic="organizations">
+                  Shown on the organization card and beside every project filed under it. PNG,
+                  JPEG, WebP or SVG, up to 2 MB.
+                </HelpTip>
+              </Label>
+              <Input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="max-w-56 text-xs"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setLogoPreview(URL.createObjectURL(file));
+                    setRemoveLogo(false);
+                  }
+                }}
+              />
+              {initial?.logoUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRemoveLogo((v) => !v);
+                    if (fileRef.current) fileRef.current.value = "";
+                  }}
+                  className="w-fit text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline"
+                >
+                  {removeLogo ? "Keep the current logo" : "Remove logo"}
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label>Organization name</Label>
             <Input
@@ -259,8 +321,8 @@ export function OrganizationsTab({
               New organization
             </Button>
           }
-          onSubmit={async ({ name, description }) => {
-            const result = await createOrganization({ name, description });
+          onSubmit={async (formData) => {
+            const result = await createOrganization(formData);
             if (!result?.error) window.location.reload();
             return result ?? {};
           }}
@@ -280,21 +342,33 @@ export function OrganizationsTab({
         {organizations.map((org) => (
           <Card key={org.id} className="gap-3 rounded-2xl p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="flex items-center gap-2 font-semibold">
-                  <Building2 className="size-4 shrink-0 text-primary" />
-                  <span className="truncate">{org.name}</span>
-                </h3>
+              <div className="flex min-w-0 items-start gap-3">
+                <Avatar className="size-10 shrink-0 rounded-xl" size="lg">
+                  {org.logo_url && (
+                    <AvatarImage src={org.logo_url} className="rounded-xl object-contain" />
+                  )}
+                  <AvatarFallback className="rounded-xl bg-primary/10 text-primary">
+                    <Building2 className="size-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                <h3 className="truncate font-semibold">{org.name}</h3>
                 {org.description && (
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                     {org.description}
                   </p>
                 )}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <OrgFormDialog
                   title={`Edit ${org.name}`}
-                  initial={{ name: org.name, description: org.description ?? "" }}
+                  initial={{
+                    id: org.id,
+                    name: org.name,
+                    description: org.description ?? "",
+                    logoUrl: org.logo_url,
+                  }}
                   trigger={
                     <button
                       className="text-muted-foreground transition-colors hover:text-foreground"
@@ -303,8 +377,8 @@ export function OrganizationsTab({
                       <Pencil className="size-4" />
                     </button>
                   }
-                  onSubmit={async ({ name, description }) => {
-                    const result = await updateOrganization({ id: org.id, name, description });
+                  onSubmit={async (formData) => {
+                    const result = await updateOrganization(formData);
                     if (!result?.error) window.location.reload();
                     return result ?? {};
                   }}

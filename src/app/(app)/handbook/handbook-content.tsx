@@ -332,6 +332,19 @@ const SECTIONS: Section[] = [
           is actually assigned to it.
         </Callout>
 
+        <H>Giving an organization a logo</H>
+        <P>
+          Click the pencil on an organization&apos;s card. Alongside the name and description
+          you can upload a logo — PNG, JPEG, WebP or SVG, up to 2 MB. It appears on the
+          organization&apos;s card and beside the organization name on every project filed under
+          it, which makes a workspace with several companies far quicker to scan.
+        </P>
+        <P>
+          Uploading a new file replaces the old one. Saving without picking a file keeps the
+          current logo — to actually clear it, use <strong>Remove logo</strong> in the same
+          dialog. That way re-saving a name change can never wipe the logo by accident.
+        </P>
+
         <H>What happens to people a Manager creates</H>
         <P>
           When a Manager creates a user from Settings → Users, that new account is automatically
@@ -424,9 +437,60 @@ const SECTIONS: Section[] = [
         <H>Creating a user</H>
         <P>
           <strong>Settings → Users → Add user.</strong> You set their name, email (which is also
-          their username) and an initial password. As Admin you also choose whether they&apos;re a
-          Manager or a Member; a Manager can only ever create Members, and those Members
-          automatically join the Manager&apos;s organizations.
+          their username) and an initial password. As Admin you also choose their role — Manager
+          or Member — and <strong>which organizations they join</strong>, right there in the
+          create form.
+        </P>
+        <Callout tone="warn" title="Always give them an organization">
+          A user who belongs to no organization can&apos;t be staffed onto any project and
+          won&apos;t appear in anybody&apos;s people picker. The Add user form insists on at
+          least one for that reason, and the Users list flags anyone in that state with{" "}
+          <em>None — can&apos;t be staffed</em>.
+        </Callout>
+        <P>
+          A Manager can only ever create Members, and those Members automatically join the
+          Manager&apos;s own organizations — so a Manager never has to think about organizations
+          at all.
+        </P>
+
+        <H>Editing a user</H>
+        <P>
+          <strong>Edit</strong> in the Actions column of Settings → Users. As Admin you can change
+          every field on the account:
+        </P>
+        <Bullets
+          items={[
+            <>
+              <strong>Profile picture</strong> — upload an image; it shows in the Users list and
+              anywhere the person appears.
+            </>,
+            <>
+              <strong>Full name</strong> — the display name used everywhere in the app.
+            </>,
+            <>
+              <strong>Email</strong> — this is what they sign in with, so tell them before you
+              change it.
+            </>,
+            <>
+              <strong>Role</strong> — promote a Member to Manager, or demote. You can&apos;t
+              demote the last remaining Admin; the app blocks it, because there would be nobody
+              left who can create organizations or approve requests.
+            </>,
+            <>
+              <strong>Organizations</strong> — move someone between companies, or put them in
+              several. Removing every organization makes them invisible in all staffing pickers,
+              and the dialog warns you when you&apos;re about to do that.
+            </>,
+            <>
+              <strong>New password</strong> — optional. Leave it blank to keep the current one.
+            </>,
+          ]}
+        />
+        <P>
+          A Manager sees the same <strong>Edit</strong> button but a much shorter form: the name
+          and picture of a Member in one of their own organizations, and nothing else. They
+          cannot change anyone&apos;s email, role, organizations or password, and cannot edit a
+          fellow Manager at all.
         </P>
 
         <H>Switching into an account (&ldquo;Switch to&rdquo;)</H>
@@ -1002,13 +1066,13 @@ const SECTIONS: Section[] = [
               changing your password.
             </>,
             <>
-              <strong>Organizations</strong> (Admin) — create companies and decide who belongs to
-              each.
+              <strong>Organizations</strong> (Admin) — create companies, give them a logo, and
+              decide who belongs to each.
             </>,
             <>
               <strong>Users</strong> (Admin, Manager) — the people you can see, their roles, their
-              organizations, and the Switch-to control. Admins additionally get password reveal and
-              reset.
+              organizations, the Switch-to control, and <strong>Edit</strong> for changing any
+              field on an account. Admins additionally get password reveal and reset.
             </>,
             <>
               <strong>My Activity</strong> (everyone) — your own activity log. The Admin gets a
@@ -1059,7 +1123,21 @@ const SECTIONS: Section[] = [
 
         <H>&ldquo;Someone shows &lsquo;None — can&apos;t be staffed&rsquo; in the Users list.&rdquo;</H>
         <P>
-          They belong to no organization, so nobody can put them on a project. Add them to one.
+          They belong to no organization, so nobody can put them on a project. Settings → Users →
+          <strong> Edit</strong> → add them to one.
+        </P>
+
+        <H>&ldquo;I need to move someone to a different company.&rdquo;</H>
+        <P>
+          Settings → Users → <strong>Edit</strong> → change their Organizations. Note this only
+          changes who can <em>see</em> them; any project they&apos;re already assigned to stays
+          assigned. Remove them from those projects separately if that&apos;s what you meant.
+        </P>
+
+        <H>&ldquo;Someone changed their name / needs a different login email.&rdquo;</H>
+        <P>
+          Settings → Users → <strong>Edit</strong>. Both are editable by the Admin. Changing the
+          email changes what they sign in with, so warn them first.
         </P>
 
         <H>&ldquo;The completion percentage is stuck at 0%.&rdquo;</H>

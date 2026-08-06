@@ -142,6 +142,7 @@ export function SettingsTabs({
             role={role as "admin" | "manager"}
             currentUserId={currentUserId}
             users={users}
+            organizations={organizations.map((o) => ({ id: o.id, name: o.name }))}
           />
         </TabsContent>
       )}

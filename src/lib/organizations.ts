@@ -6,6 +6,7 @@ export type Organization = {
   id: string;
   name: string;
   description: string | null;
+  logo_url: string | null;
   created_at: string;
 };
 
@@ -29,7 +30,7 @@ export async function listOrganizations(): Promise<Organization[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("organizations")
-    .select("id, name, description, created_at")
+    .select("id, name, description, logo_url, created_at")
     .order("name");
   return data ?? [];
 }
@@ -38,7 +39,7 @@ export async function listOrganizationsWithMembers(): Promise<OrganizationDetail
   const supabase = await createClient();
 
   const [{ data: orgs }, { data: memberRows }, { data: projectRows }] = await Promise.all([
-    supabase.from("organizations").select("id, name, description, created_at").order("name"),
+    supabase.from("organizations").select("id, name, description, logo_url, created_at").order("name"),
     supabase
       .from("organization_members")
       .select("org_id, profiles:user_id(id, full_name, role)"),

@@ -5,6 +5,7 @@ import { recordAudit } from "@/lib/audit";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { decryptPassword, encryptPassword } from "@/lib/crypto";
 import { orgIdsForUser } from "@/lib/organizations";
+import { AVATAR_BUCKET, uploadPublicImage } from "@/lib/storage";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -87,6 +88,161 @@ export async function createManagedUser(input: {
   });
 
   revalidatePath("/settings");
+  return { ok: true };
+}
+
+/**
+ * Edit an existing account.
+ *
+ * The Admin can change everything — display name, sign-in email, role, which
+ * organizations they belong to, their avatar, and their password. A Manager
+ * can only rename a Member inside one of their own organizations; every other
+ * field is ignored rather than rejected, so the narrower form simply does
+ * less rather than erroring.
+ *
+ * FormData because the avatar is a File.
+ */
+export async function updateManagedUser(formData: FormData) {
+  const actor = await requireRole("admin", "manager");
+  const service = createServiceClient();
+
+  const userId = String(formData.get("userId") ?? "");
+  if (!userId) return { error: "Missing user." };
+
+  const { data: target } = await service
+    .from("profiles")
+    .select("id, full_name, role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!target) return { error: "User not found." };
+
+  const isAdmin = actor.role === "admin";
+
+  if (!isAdmin) {
+    // A Manager may only touch Members who share one of their organizations.
+    if (target.role !== "member") {
+      return { error: "Managers can only edit member accounts." };
+    }
+    const [actorOrgs, { data: targetOrgs }] = await Promise.all([
+      orgIdsForUser(actor.id),
+      service.from("organization_members").select("org_id").eq("user_id", userId),
+    ]);
+    if (!(targetOrgs ?? []).some((r) => actorOrgs.includes(r.org_id))) {
+      return { error: "That user isn't in one of your organizations." };
+    }
+  }
+
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  if (!fullName) return { error: "Name is required." };
+
+  const email = String(formData.get("email") ?? "").trim();
+  const newPassword = String(formData.get("password") ?? "");
+  const role = String(formData.get("role") ?? "") as "admin" | "manager" | "member";
+  const avatar = formData.get("avatar");
+
+  // Never let the last Admin demote themselves out of existence — there would
+  // be nobody left who can create organizations or approve requests.
+  if (isAdmin && target.role === "admin" && role && role !== "admin") {
+    const { count } = await service
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("role", "admin");
+    if ((count ?? 0) <= 1) {
+      return { error: "This is the only Admin account — promote someone else first." };
+    }
+  }
+
+  let avatarUrl: string | undefined;
+  if (avatar instanceof File && avatar.size > 0) {
+    const upload = await uploadPublicImage(AVATAR_BUCKET, avatar);
+    if (upload.error) return { error: upload.error };
+    avatarUrl = upload.url;
+  }
+
+  const { error: profileError } = await service
+    .from("profiles")
+    .update({
+      full_name: fullName,
+      ...(isAdmin && role ? { role } : {}),
+      ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
+    })
+    .eq("id", userId);
+  if (profileError) return { error: profileError.message };
+
+  if (isAdmin) {
+    const authPatch: { email?: string; password?: string; user_metadata?: object } = {
+      user_metadata: { full_name: fullName, role: role || target.role },
+    };
+    if (email) authPatch.email = email;
+    if (newPassword) {
+      if (newPassword.length < 8) {
+        return { error: "A new password needs to be at least 8 characters." };
+      }
+      authPatch.password = newPassword;
+    }
+
+    const { error: authError } = await service.auth.admin.updateUserById(userId, authPatch);
+    if (authError) return { error: authError.message };
+
+    // Keep the Admin-visible copy in step with what the account now uses.
+    if (newPassword) {
+      await service.from("credentials").upsert({
+        user_id: userId,
+        encrypted_password: encryptPassword(newPassword),
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    // Organizations are submitted as the complete list, so diff rather than
+    // clear-and-reinsert — a wipe would briefly orphan the user from every
+    // picker if the follow-up insert failed.
+    //
+    // Gated on its own flag rather than on organizationIds being present:
+    // deselecting every organization submits no ids at all, and that has to
+    // mean "remove them from all" rather than "leave them alone".
+    if (String(formData.get("syncOrganizations") ?? "") === "1") {
+      const desired = Array.from(
+        new Set(formData.getAll("organizationIds").map(String).filter(Boolean)),
+      );
+      const { data: existing } = await service
+        .from("organization_members")
+        .select("org_id")
+        .eq("user_id", userId);
+
+      const current = new Set((existing ?? []).map((r) => r.org_id));
+      const toAdd = desired.filter((id) => !current.has(id));
+      const toRemove = Array.from(current).filter((id) => !desired.includes(id));
+
+      if (toAdd.length > 0) {
+        await service
+          .from("organization_members")
+          .insert(toAdd.map((orgId) => ({ org_id: orgId, user_id: userId })));
+      }
+      if (toRemove.length > 0) {
+        await service
+          .from("organization_members")
+          .delete()
+          .eq("user_id", userId)
+          .in("org_id", toRemove);
+      }
+    }
+  }
+
+  void recordAudit({
+    actorId: actor.id,
+    action: "user.update",
+    entityType: "user",
+    entityId: userId,
+    entityName: fullName,
+    meta: {
+      changedEmail: isAdmin && Boolean(email),
+      changedRole: isAdmin && Boolean(role) && role !== target.role,
+      changedPassword: isAdmin && Boolean(newPassword),
+    },
+  });
+
+  revalidatePath("/settings");
+  revalidatePath("/projects");
   return { ok: true };
 }
 
