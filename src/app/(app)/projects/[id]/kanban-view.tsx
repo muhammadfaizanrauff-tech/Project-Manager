@@ -112,7 +112,7 @@ function Column({
   const { setNodeRef } = useDroppable({ id: category.id });
 
   return (
-    <div className="flex w-72 shrink-0 flex-col gap-3 rounded-2xl border border-border/60 bg-muted/30 p-3">
+    <div className="flex w-[80vw] max-w-72 shrink-0 flex-col gap-3 rounded-2xl border border-border/60 bg-muted/30 p-3 sm:w-72">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <span

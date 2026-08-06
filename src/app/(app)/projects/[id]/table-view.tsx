@@ -174,6 +174,123 @@ const TaskRow = memo(function TaskRow({
   );
 });
 
+// Below md the table is unusable — 840px of columns in a 360px viewport means
+// every dropdown and date field sits off-screen behind a horizontal scroll.
+// The same row is rendered as a stacked card instead: identical data, identical
+// callbacks, just laid out vertically with touch-sized controls.
+const TaskCard = memo(function TaskCard({
+  task,
+  statuses,
+  visibleColumns,
+  canDelete,
+  isSelected,
+  commentCount,
+  deleteRequested,
+  onToggleSelect,
+  onOpenTask,
+  onPatch,
+  onDelete,
+  onRequestDelete,
+}: {
+  task: TaskRecord;
+  statuses: Status[];
+  visibleColumns: Set<ColumnKey>;
+  canDelete: boolean;
+  isSelected: boolean;
+  commentCount: number;
+  deleteRequested: boolean;
+  onToggleSelect: (taskId: string) => void;
+  onOpenTask: (task: TaskRecord) => void;
+  onPatch: (task: TaskRecord, values: TaskPatch) => void;
+  onDelete: (task: TaskRecord) => void;
+  onRequestDelete: (task: TaskRecord) => void;
+}) {
+  return (
+    <div
+      className={`flex flex-col gap-2 border-b p-3 last:border-0 ${
+        isSelected ? "bg-primary/[0.06]" : ""
+      }`}
+    >
+      <div className="flex items-start gap-2.5">
+        <span className="flex size-8 shrink-0 items-center justify-center">
+          <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(task.id)} />
+        </span>
+        <button
+          className="min-w-0 flex-1 text-left"
+          onClick={() => onOpenTask(task)}
+        >
+          <span className="block text-sm font-medium leading-snug">{task.name}</span>
+          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+            #{task.serial_no} ·{" "}
+            {new Date(task.created_at).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+            })}
+          </span>
+        </button>
+        {canDelete ? (
+          <button
+            onClick={() => onDelete(task)}
+            aria-label={`Delete ${task.name}`}
+            className="flex size-8 shrink-0 items-center justify-center text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        ) : (
+          <button
+            onClick={() => onRequestDelete(task)}
+            disabled={deleteRequested}
+            aria-label={deleteRequested ? "Delete request sent" : `Request deletion of ${task.name}`}
+            className="flex size-8 shrink-0 items-center justify-center text-muted-foreground hover:text-destructive disabled:cursor-default disabled:text-primary"
+          >
+            {deleteRequested ? <Clock className="size-4" /> : <Trash2 className="size-4" />}
+          </button>
+        )}
+      </div>
+
+      {visibleColumns.has("description") && task.description && (
+        <p className="line-clamp-2 pl-[2.625rem] text-xs text-muted-foreground">
+          {task.description}
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2 pl-[2.625rem]">
+        {visibleColumns.has("priority") && (
+          <PrioritySelect
+            value={task.priority}
+            onChange={(priority) => onPatch(task, { priority })}
+          />
+        )}
+        {visibleColumns.has("status") && (
+          <StatusSelect
+            value={task.status_id}
+            statuses={statuses}
+            onChange={(status_id) => onPatch(task, { status_id })}
+          />
+        )}
+        {visibleColumns.has("dueDate") && (
+          <Input
+            type="date"
+            aria-label="Due date"
+            defaultValue={task.due_date ?? ""}
+            onChange={(e) => onPatch(task, { due_date: e.target.value || null })}
+            className="h-7 w-auto min-w-0 shrink px-1.5 text-xs"
+          />
+        )}
+        {visibleColumns.has("comments") && (
+          <button
+            onClick={() => onOpenTask(task)}
+            className="flex h-7 items-center gap-1 text-xs text-muted-foreground"
+          >
+            <MessageSquare className="size-3.5" />
+            {commentCount}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+});
+
 export function TableView({
   projectId,
   categories,
@@ -460,20 +577,20 @@ export function TableView({
                 onClick={() => toggleCollapsed(category.id)}
                 className="flex w-full items-center justify-between gap-3 border-b bg-muted/30 px-4 py-2.5 text-left transition-colors hover:bg-muted/50"
               >
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <motion.span
                     animate={{ rotate: isCollapsed ? -90 : 0 }}
                     transition={{ duration: 0.2 }}
-                    className="text-muted-foreground"
+                    className="shrink-0 text-muted-foreground"
                   >
                     <ChevronDown className="size-4" />
                   </motion.span>
-                  <h3 className="text-sm font-semibold">{category.name}</h3>
-                  <span className="text-xs text-muted-foreground">
+                  <h3 className="truncate text-sm font-semibold">{category.name}</h3>
+                  <span className="shrink-0 text-xs text-muted-foreground">
                     {groupTasks.length} task{groupTasks.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex shrink-0 items-center gap-3">
                   <CategoryDonut tasks={groupTasks} statuses={statuses} />
                   {canDelete && category.id !== UNCATEGORIZED.id && (
                     <span
@@ -501,7 +618,47 @@ export function TableView({
                     transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                     className="min-w-0 overflow-hidden"
                   >
-                    <div className="overflow-x-auto">
+                    {/* Mobile: stacked cards. */}
+                    <div className="md:hidden">
+                      {groupTasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          statuses={statuses}
+                          visibleColumns={visibleColumns}
+                          canDelete={canDelete}
+                          isSelected={selected.has(task.id)}
+                          commentCount={commentCounts[task.id] ?? 0}
+                          deleteRequested={requestedDeleteIds.has(task.id)}
+                          onToggleSelect={toggleSelected}
+                          onOpenTask={onOpenTask}
+                          onPatch={patch}
+                          onDelete={handleDeleteTask}
+                          onRequestDelete={handleRequestDelete}
+                        />
+                      ))}
+                      <div className="flex items-center gap-2 p-3">
+                        <Plus className="size-4 shrink-0 text-muted-foreground" />
+                        <input
+                          value={newTaskName[category.id] ?? ""}
+                          onChange={(e) =>
+                            setNewTaskName((prev) => ({
+                              ...prev,
+                              [category.id]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleAddTask(category.id);
+                          }}
+                          placeholder="Add task"
+                          aria-label={`Add a task to ${category.name}`}
+                          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                        />
+                      </div>
+                    </div>
+
+                    {/* md and up: the full table. */}
+                    <div className="hidden overflow-x-auto md:block">
                       <table className="w-full min-w-[840px] border-collapse text-sm">
                         <thead>
                           <tr className="border-b text-left text-xs text-muted-foreground">
@@ -613,7 +770,7 @@ export function TableView({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit max-w-[calc(100%-2rem)] flex-wrap items-center gap-2 rounded-2xl border bg-popover px-4 py-2.5 shadow-lg"
+            className="fixed inset-x-3 bottom-3 z-30 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] flex-wrap items-center justify-center gap-2 rounded-2xl border bg-popover px-3 py-2.5 shadow-lg sm:inset-x-0 sm:bottom-4 sm:px-4"
           >
             <span className="flex items-center gap-1.5 text-sm font-medium">
               <CheckSquare className="size-4 text-primary" />

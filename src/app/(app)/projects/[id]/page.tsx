@@ -69,10 +69,10 @@ export default async function ProjectDetailPage({
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-6">
       <FadeIn>
-      <Card className="gap-4 rounded-2xl p-5 shadow-sm">
+      <Card className="gap-4 rounded-2xl p-4 shadow-sm sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Avatar className="size-14 rounded-xl" size="lg">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <Avatar className="size-12 shrink-0 rounded-xl sm:size-14" size="lg">
               {project.logo_url && (
                 <AvatarImage src={project.logo_url} className="rounded-xl" />
               )}
@@ -80,8 +80,8 @@ export default async function ProjectDetailPage({
                 <FolderKanban className="size-6" />
               </AvatarFallback>
             </Avatar>
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
                 {project.name}
               </h1>
               <p className="text-sm text-muted-foreground">
@@ -94,7 +94,7 @@ export default async function ProjectDetailPage({
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <AvatarGroup>
               {project.members.slice(0, 5).map((member) => (
                 <Avatar key={member.id} className="size-8 ring-2 ring-background">

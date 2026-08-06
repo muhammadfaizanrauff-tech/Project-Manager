@@ -89,7 +89,66 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
           </p>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border">
+        <>
+        {/* Mobile: one card per import, so nothing hides behind a sideways scroll. */}
+        <div className="flex flex-col gap-3 md:hidden">
+          {filtered.map((batch) => (
+            <div key={batch.id} className="flex flex-col gap-2 rounded-2xl border p-3.5">
+              <div className="flex items-start gap-2">
+                <FileUp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-sm font-medium">{batch.file_name}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {SOURCE_LABELS[batch.source] ?? batch.source} ·{" "}
+                    {formatTimestamp(batch.created_at)}
+                  </p>
+                </div>
+                <Badge variant="secondary" className="shrink-0 rounded-full border-none font-normal">
+                  {batch.created_count}
+                  {batch.row_count !== batch.created_count && (
+                    <span className="ml-1 opacity-60">of {batch.row_count}</span>
+                  )}
+                </Badge>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                {batch.project_name ?? "No project"} · by {batch.imported_by_name ?? "Unknown"}
+              </p>
+
+              {batch.warnings.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setExpanded(expanded === batch.id ? null : batch.id)}
+                    className="flex items-center gap-1 self-start text-[11px] font-medium text-amber-600 dark:text-amber-400"
+                  >
+                    <AlertTriangle className="size-3" />
+                    {batch.warnings.length} warning{batch.warnings.length === 1 ? "" : "s"}
+                  </button>
+                  {expanded === batch.id && (
+                    <ul className="list-disc space-y-0.5 rounded-lg bg-amber-500/10 py-2 pl-6 pr-3 text-[11px] text-amber-700 dark:text-amber-300">
+                      {batch.warnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-0.5 w-full gap-1 text-xs"
+                nativeButton={false}
+                render={<Link href={`/projects/${batch.project_id}?import=${batch.id}`} />}
+              >
+                View tasks
+                <ArrowRight className="size-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-2xl border md:block">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
               <tr>
@@ -166,6 +225,7 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

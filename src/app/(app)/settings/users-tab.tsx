@@ -596,7 +596,92 @@ export function UsersTab({
         <AddUserDialog role={role} organizations={organizations} />
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border">
+      {/* Mobile: one card per person. The 7-column table needs 760px, which is
+          twice a phone's width — scrolled sideways it's unreadable. */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {list.map((user) => {
+          const isSelf = user.id === currentUserId;
+
+          return (
+            <div key={user.id} className="flex flex-col gap-2.5 rounded-2xl border p-3.5">
+              <div className="flex items-start gap-2.5">
+                <Avatar className="size-9 shrink-0">
+                  {user.avatar_url && <AvatarImage src={user.avatar_url} />}
+                  <AvatarFallback className="text-[11px]">
+                    {(user.full_name ?? "?")
+                      .split(" ")
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((p) => p[0]?.toUpperCase())
+                      .join("") || "?"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">
+                    {user.full_name || "Unnamed"}
+                    {isSelf && (
+                      <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                        (you)
+                      </span>
+                    )}
+                  </p>
+                  <p className="break-all text-xs text-muted-foreground">{user.email}</p>
+                </div>
+                <RoleBadge role={user.role} />
+              </div>
+
+              {user.organizations.length === 0 ? (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  In no organization — can&apos;t be staffed
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {user.organizations.map((org) => (
+                    <Badge
+                      key={org}
+                      variant="secondary"
+                      className="rounded-full border-none text-[10px] font-normal"
+                    >
+                      {org}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {role === "admin" && !isSelf && (
+                <div className="flex flex-wrap items-center gap-2 border-t pt-2.5">
+                  <PasswordCell userId={user.id} />
+                  <ChangePasswordDialog userId={user.id} />
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center gap-4 border-t pt-2.5">
+                {user.switchable && <SwitchToButton userId={user.id} />}
+                {(user.manageable || isSelf) && (
+                  <EditUserDialog user={user} actorRole={role} organizations={organizations} />
+                )}
+                {user.manageable && !isSelf && (
+                  <span className="ml-auto">
+                    <DeleteUserDialog user={user} onConfirm={() => handleDelete(user)} />
+                  </span>
+                )}
+                {!user.manageable && !isSelf && !user.switchable && (
+                  <span className="text-[11px] text-muted-foreground">Read-only</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {list.length === 0 && (
+          <p className="rounded-2xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+            {role === "manager"
+              ? "Nobody in your organizations yet. Ask the Admin to add you to one, or create a user above."
+              : "No users yet."}
+          </p>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-2xl border md:block">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>

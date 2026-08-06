@@ -135,7 +135,10 @@ export function TaskSheet({
 
   return (
     <Sheet open={Boolean(task)} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 sm:max-w-lg">
+      {/* Same-variant width so tailwind-merge drops the primitive's w-3/4 — a
+          form drawer at 75% of a phone leaves the date and select fields
+          squeezed against the edge. */}
+      <SheetContent className="flex flex-col gap-0 data-[side=right]:w-full sm:max-w-lg">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             Task #{task.serial_no}
@@ -151,25 +154,25 @@ export function TaskSheet({
         </SheetHeader>
 
         <Tabs defaultValue="details" className="flex flex-1 flex-col overflow-hidden">
-          <TabsList className="mx-4 w-fit">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="checklist">
-              Checklist
-              {extras.subtasks.length > 0 && (
-                <span className="ml-1 text-muted-foreground">({extras.subtasks.length})</span>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="links">Links</TabsTrigger>
-            <TabsTrigger value="time">Time</TabsTrigger>
-          </TabsList>
-          <span className="ml-1 self-center">
+          <div className="flex items-center gap-1.5 px-4">
+            <TabsList className="no-scrollbar w-full max-w-full flex-nowrap overflow-x-auto [&>*]:shrink-0 sm:w-fit">
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="checklist">
+                Checklist
+                {extras.subtasks.length > 0 && (
+                  <span className="ml-1 text-muted-foreground">({extras.subtasks.length})</span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="links">Links</TabsTrigger>
+              <TabsTrigger value="time">Time</TabsTrigger>
+            </TabsList>
             <HelpTip topic="tasks">
               <strong>Checklist</strong> is sub-steps you tick off.{" "}
               <strong>Links</strong> holds labels and dependencies — a task waiting on an
               unfinished one is flagged Blocked. <strong>Time</strong> is the estimate and the
               time actually spent.
             </HelpTip>
-          </span>
+          </div>
 
           <div className="flex-1 overflow-y-auto px-4 pb-4">
             <TabsContent value="details" className="flex flex-col gap-4 pt-3">

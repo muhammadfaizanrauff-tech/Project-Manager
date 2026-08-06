@@ -253,7 +253,9 @@ export function AppShell({
 
       {/* Mobile sidebar */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-64 p-0">
+        {/* Same-variant width so tailwind-merge drops the primitive's w-3/4 —
+            a percentage width leaves the nav cramped on a narrow phone. */}
+        <SheetContent side="left" className="data-[side=left]:w-[17rem] data-[side=left]:max-w-[85vw] p-0">
           <SheetHeader className="h-14 flex-row items-center border-b px-4 py-0">
             <SheetTitle>
               <Logo />
@@ -273,7 +275,7 @@ export function AppShell({
 
       {/* Main column */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-primary/[0.035]">
-        <header className="glass-surface sticky top-0 z-40 flex h-14 items-center justify-between gap-2 border-b px-4 sm:px-6">
+        <header className="glass-surface sticky top-0 z-40 flex h-14 items-center justify-between gap-2 border-b px-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-1">
             <Button
               variant="ghost"
@@ -284,17 +286,25 @@ export function AppShell({
             >
               <Menu className="size-5" />
             </Button>
+            {/* The sidebar carries the branding from sm up; below that it's
+                behind the menu button, so the header has to show it instead. */}
+            <Link href="/dashboard" className="flex shrink-0 items-center sm:hidden">
+              <Logo />
+            </Link>
             {/* Renders itself away when there's no history to return to. */}
             <BackButton />
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
             <NotificationBell userId={userId} initialUnread={unreadCount} />
             <ThemeToggle />
             <UserMenu name={name} email={email} role={role} />
           </div>
         </header>
 
-        <main className="mx-auto flex w-full min-w-0 max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8">
+        {/* overflow-x-clip (not hidden) so nothing inside can scroll the whole
+            page sideways, without turning this into a scroll container that
+            would break the sticky header and the handbook's sticky rail. */}
+        <main className="mx-auto flex w-full min-w-0 max-w-7xl flex-1 flex-col overflow-x-clip px-3 py-5 sm:px-6 sm:py-6 lg:px-8">
           {children}
         </main>
 

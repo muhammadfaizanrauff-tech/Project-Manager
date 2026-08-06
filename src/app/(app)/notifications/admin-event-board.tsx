@@ -261,7 +261,10 @@ export function AdminEventBoard({ columns }: { columns: ProjectEventColumn[] }) 
           {visible.map((col) => (
             <div
               key={col.projectId}
-              className="flex w-80 shrink-0 snap-start flex-col gap-3 rounded-2xl border bg-muted/25 p-3"
+              // A flat w-80 is wider than a phone, so the first column already
+              // overflows before you've scrolled. Below sm it takes most of the
+              // viewport with the next column peeking in as a scroll hint.
+              className="flex w-[85vw] max-w-80 shrink-0 snap-start flex-col gap-3 rounded-2xl border bg-muted/25 p-3 sm:w-80"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">

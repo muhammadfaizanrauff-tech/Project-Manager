@@ -57,7 +57,10 @@ export function SettingsTabs({
 
   return (
     <Tabs defaultValue="profile">
-      <TabsList className="h-auto flex-wrap gap-1 bg-muted/60 p-1">
+      {/* Up to nine tabs. Wrapping them on a phone builds a five-row block that
+          pushes the actual settings off-screen, so below sm they scroll
+          sideways as one strip instead. */}
+      <TabsList className="no-scrollbar h-auto w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto bg-muted/60 p-1 [&>*]:shrink-0 sm:flex-wrap">
         <TabsTrigger value="profile" className="gap-1.5">
           <User className="size-3.5" />
           Profile
