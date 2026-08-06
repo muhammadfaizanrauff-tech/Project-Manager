@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { LayoutDashboard, LayoutGrid, Table as TableIcon } from "lucide-react";
 
@@ -118,9 +118,15 @@ export function ProjectWorkspace({
     };
   }, [projectId]);
 
-  function updateTaskLocal(taskId: string, patch: Partial<TaskRecord>) {
+  // Stable identities matter here: TableView's rows are memoised, and a fresh
+  // closure on every render of this component would defeat that entirely.
+  const updateTaskLocal = useCallback((taskId: string, patch: Partial<TaskRecord>) => {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...patch } : t)));
-  }
+  }, []);
+
+  const handleOpenTask = useCallback((task: TaskRecord) => {
+    setSelectedTaskId(task.id);
+  }, []);
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -167,7 +173,7 @@ export function ProjectWorkspace({
           onCategoriesChange={setCategories}
           onTasksChange={setTasks}
           onTaskUpdate={updateTaskLocal}
-          onOpenTask={(task) => setSelectedTaskId(task.id)}
+          onOpenTask={handleOpenTask}
         />
       )}
       {view === "kanban" && (
@@ -178,7 +184,7 @@ export function ProjectWorkspace({
           statuses={statuses}
           commentCounts={commentCounts}
           onTasksChange={setTasks}
-          onOpenTask={(task) => setSelectedTaskId(task.id)}
+          onOpenTask={handleOpenTask}
         />
       )}
       {view === "dashboard" && (

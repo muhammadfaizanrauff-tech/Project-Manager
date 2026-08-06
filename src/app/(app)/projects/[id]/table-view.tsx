@@ -1,6 +1,16 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+  useTransition,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CheckSquare, ChevronDown, Clock, MessageSquare, Plus, Trash2, X } from "lucide-react";
 
@@ -36,6 +46,133 @@ function accentFor(id: string) {
   return CATEGORY_ACCENTS[hash % CATEGORY_ACCENTS.length];
 }
 
+type TaskPatch = Parameters<typeof updateTask>[2];
+
+// Every row mounts a checkbox, two dropdowns and a date input, so a project
+// with a few hundred tasks has well over a thousand interactive components on
+// screen. Memoising the row means a state change in the parent (typing in
+// search, toggling a filter, selecting one task) only re-renders the rows that
+// actually changed. Every callback below is passed in already-stable so the
+// memo isn't defeated by a fresh closure each render.
+const TaskRow = memo(function TaskRow({
+  task,
+  statuses,
+  visibleColumns,
+  canDelete,
+  isSelected,
+  commentCount,
+  deleteRequested,
+  onToggleSelect,
+  onOpenTask,
+  onPatch,
+  onDelete,
+  onRequestDelete,
+}: {
+  task: TaskRecord;
+  statuses: Status[];
+  visibleColumns: Set<ColumnKey>;
+  canDelete: boolean;
+  isSelected: boolean;
+  commentCount: number;
+  deleteRequested: boolean;
+  onToggleSelect: (taskId: string) => void;
+  onOpenTask: (task: TaskRecord) => void;
+  onPatch: (task: TaskRecord, values: TaskPatch) => void;
+  onDelete: (task: TaskRecord) => void;
+  onRequestDelete: (task: TaskRecord) => void;
+}) {
+  return (
+    <tr
+      className={`border-b last:border-0 transition-colors hover:bg-primary/[0.04] ${
+        isSelected ? "bg-primary/[0.06]" : ""
+      }`}
+    >
+      <td className="px-3 py-2">
+        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(task.id)} />
+      </td>
+      <td className="px-3 py-2 text-muted-foreground">{task.serial_no}</td>
+      <td className="px-3 py-2 text-xs text-muted-foreground">
+        {new Date(task.created_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })}
+      </td>
+      <td className="px-3 py-2">
+        <button
+          className="text-left font-medium transition-colors hover:text-primary"
+          onClick={() => onOpenTask(task)}
+        >
+          {task.name}
+        </button>
+      </td>
+      {visibleColumns.has("description") && (
+        <td className="max-w-56 truncate px-3 py-2 text-muted-foreground">
+          {task.description || "—"}
+        </td>
+      )}
+      {visibleColumns.has("priority") && (
+        <td className="px-3 py-2">
+          <PrioritySelect
+            value={task.priority}
+            onChange={(priority) => onPatch(task, { priority })}
+          />
+        </td>
+      )}
+      {visibleColumns.has("status") && (
+        <td className="px-3 py-2">
+          <StatusSelect
+            value={task.status_id}
+            statuses={statuses}
+            onChange={(status_id) => onPatch(task, { status_id })}
+          />
+        </td>
+      )}
+      {visibleColumns.has("dueDate") && (
+        <td className="px-3 py-2">
+          <Input
+            type="date"
+            defaultValue={task.due_date ?? ""}
+            onChange={(e) => onPatch(task, { due_date: e.target.value || null })}
+            className="h-7 w-full border-none bg-transparent px-1 text-xs shadow-none"
+          />
+        </td>
+      )}
+      {visibleColumns.has("comments") && (
+        <td className="px-3 py-2">
+          <button
+            onClick={() => onOpenTask(task)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <MessageSquare className="size-3.5" />
+            {commentCount}
+          </button>
+        </td>
+      )}
+      {canDelete ? (
+        <td className="px-3 py-2">
+          <button
+            onClick={() => onDelete(task)}
+            className="text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        </td>
+      ) : (
+        <td className="px-3 py-2">
+          <button
+            onClick={() => onRequestDelete(task)}
+            disabled={deleteRequested}
+            title={deleteRequested ? "Delete request sent" : "Request deletion"}
+            className="text-muted-foreground hover:text-destructive disabled:cursor-default disabled:text-primary disabled:hover:text-primary"
+          >
+            {deleteRequested ? <Clock className="size-3.5" /> : <Trash2 className="size-3.5" />}
+          </button>
+        </td>
+      )}
+    </tr>
+  );
+});
+
 export function TableView({
   projectId,
   categories,
@@ -54,8 +191,10 @@ export function TableView({
   statuses: Status[];
   canDelete: boolean;
   commentCounts: Record<string, number>;
-  onCategoriesChange: (categories: CategoryRecord[]) => void;
-  onTasksChange: (tasks: TaskRecord[]) => void;
+  // Setter-shaped so handlers can update functionally and stay dependency-free
+  // (and therefore referentially stable for the memoised rows).
+  onCategoriesChange: Dispatch<SetStateAction<CategoryRecord[]>>;
+  onTasksChange: Dispatch<SetStateAction<TaskRecord[]>>;
   onTaskUpdate: (taskId: string, patch: Partial<TaskRecord>) => void;
   onOpenTask: (task: TaskRecord) => void;
 }) {
@@ -92,36 +231,56 @@ export function TableView({
     localStorage.setItem(`table-columns-${projectId}`, JSON.stringify(Array.from(next)));
   }
 
-  const query = search.trim().toLowerCase();
-  const statusLabelById = new Map(statuses.map((s) => [s.id, s.label.toLowerCase()]));
+  // The input stays bound to `search` so typing is always instant; the
+  // expensive re-filter runs against the deferred value and is allowed to lag
+  // a frame behind rather than blocking each keystroke.
+  const deferredSearch = useDeferredValue(search);
+  const query = deferredSearch.trim().toLowerCase();
 
-  const filteredTasks = tasks.filter((t) => {
-    if (filters.priorities.length > 0 && !filters.priorities.includes(t.priority)) return false;
-    if (filters.statusIds.length > 0 && !(t.status_id && filters.statusIds.includes(t.status_id)))
-      return false;
-    if (query) {
-      const haystack = [
-        t.name,
-        t.description ?? "",
-        `#${t.serial_no}`,
-        String(t.serial_no),
-        t.priority,
-        t.status_id ? statusLabelById.get(t.status_id) ?? "" : "",
-        t.due_date ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      if (!haystack.includes(query)) return false;
-    }
-    return true;
-  });
+  const statusLabelById = useMemo(
+    () => new Map(statuses.map((s) => [s.id, s.label.toLowerCase()])),
+    [statuses],
+  );
 
-  const groups = [...categories, UNCATEGORIZED as CategoryRecord].map((cat) => ({
-    category: cat,
-    tasks: filteredTasks
-      .filter((t) => (t.category_id ?? UNCATEGORIZED.id) === cat.id)
-      .sort((a, b) => a.position - b.position),
-  }));
+  const filteredTasks = useMemo(
+    () =>
+      tasks.filter((t) => {
+        if (filters.priorities.length > 0 && !filters.priorities.includes(t.priority))
+          return false;
+        if (
+          filters.statusIds.length > 0 &&
+          !(t.status_id && filters.statusIds.includes(t.status_id))
+        )
+          return false;
+        if (query) {
+          const haystack = [
+            t.name,
+            t.description ?? "",
+            `#${t.serial_no}`,
+            String(t.serial_no),
+            t.priority,
+            t.status_id ? statusLabelById.get(t.status_id) ?? "" : "",
+            t.due_date ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          if (!haystack.includes(query)) return false;
+        }
+        return true;
+      }),
+    [tasks, filters, query, statusLabelById],
+  );
+
+  const groups = useMemo(
+    () =>
+      [...categories, UNCATEGORIZED as CategoryRecord].map((cat) => ({
+        category: cat,
+        tasks: filteredTasks
+          .filter((t) => (t.category_id ?? UNCATEGORIZED.id) === cat.id)
+          .sort((a, b) => a.position - b.position),
+      })),
+    [categories, filteredTasks],
+  );
 
   function toggleCollapsed(categoryId: string) {
     setCollapsed((prev) => {
@@ -132,14 +291,14 @@ export function TableView({
     });
   }
 
-  function toggleSelected(taskId: string) {
+  const toggleSelected = useCallback((taskId: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(taskId)) next.delete(taskId);
       else next.add(taskId);
       return next;
     });
-  }
+  }, []);
 
   function handleAddCategory() {
     const name = newCategoryName.trim();
@@ -148,7 +307,9 @@ export function TableView({
     setAddingCategory(false);
     startTransition(async () => {
       const result = await createCategory(projectId, name);
-      if (result.data) onCategoriesChange([...categories, result.data as CategoryRecord]);
+      if (result.data) {
+        onCategoriesChange((prev) => [...prev, result.data as CategoryRecord]);
+      }
     });
   }
 
@@ -162,41 +323,50 @@ export function TableView({
         categoryId === UNCATEGORIZED.id ? null : categoryId,
         name,
       );
-      if (result.data) onTasksChange([...tasks, result.data as TaskRecord]);
+      if (result.data) onTasksChange((prev) => [...prev, result.data as TaskRecord]);
     });
   }
 
-  function handleDeleteTask(task: TaskRecord) {
-    onTasksChange(tasks.filter((t) => t.id !== task.id));
-    startTransition(() => {
-      deleteTask(projectId, task.id);
-    });
-  }
+  const handleDeleteTask = useCallback(
+    (task: TaskRecord) => {
+      onTasksChange((prev) => prev.filter((t) => t.id !== task.id));
+      startTransition(() => {
+        deleteTask(projectId, task.id);
+      });
+    },
+    [onTasksChange, projectId, startTransition],
+  );
 
-  function handleRequestDelete(task: TaskRecord) {
-    setRequestedDeleteIds((prev) => new Set(prev).add(task.id));
-    startTransition(() => {
-      requestTaskDeletion(projectId, task.id, task.name);
-    });
-  }
+  const handleRequestDelete = useCallback(
+    (task: TaskRecord) => {
+      setRequestedDeleteIds((prev) => new Set(prev).add(task.id));
+      startTransition(() => {
+        requestTaskDeletion(projectId, task.id, task.name);
+      });
+    },
+    [projectId, startTransition],
+  );
 
   function handleDeleteCategory(categoryId: string) {
-    onCategoriesChange(categories.filter((c) => c.id !== categoryId));
+    onCategoriesChange((prev) => prev.filter((c) => c.id !== categoryId));
     startTransition(() => {
       deleteCategory(projectId, categoryId);
     });
   }
 
-  function patch(task: TaskRecord, values: Parameters<typeof updateTask>[2]) {
-    onTaskUpdate(task.id, values);
-    startTransition(() => {
-      updateTask(projectId, task.id, values);
-    });
-  }
+  const patch = useCallback(
+    (task: TaskRecord, values: TaskPatch) => {
+      onTaskUpdate(task.id, values);
+      startTransition(() => {
+        updateTask(projectId, task.id, values);
+      });
+    },
+    [onTaskUpdate, projectId, startTransition],
+  );
 
   function bulkSetPriority(priority: "high" | "medium" | "low") {
     const ids = Array.from(selected);
-    onTasksChange(tasks.map((t) => (ids.includes(t.id) ? { ...t, priority } : t)));
+    onTasksChange((prev) => prev.map((t) => (ids.includes(t.id) ? { ...t, priority } : t)));
     startTransition(() => {
       bulkUpdateTasks(projectId, ids, { priority });
     });
@@ -204,7 +374,9 @@ export function TableView({
 
   function bulkSetStatus(statusId: string) {
     const ids = Array.from(selected);
-    onTasksChange(tasks.map((t) => (ids.includes(t.id) ? { ...t, status_id: statusId } : t)));
+    onTasksChange((prev) =>
+      prev.map((t) => (ids.includes(t.id) ? { ...t, status_id: statusId } : t)),
+    );
     startTransition(() => {
       bulkUpdateTasks(projectId, ids, { status_id: statusId });
     });
@@ -212,7 +384,7 @@ export function TableView({
 
   function bulkDelete() {
     const ids = Array.from(selected);
-    onTasksChange(tasks.filter((t) => !ids.includes(t.id)));
+    onTasksChange((prev) => prev.filter((t) => !ids.includes(t.id)));
     setSelected(new Set());
     startTransition(() => {
       bulkDeleteTasks(projectId, ids);
@@ -235,8 +407,7 @@ export function TableView({
     });
   }
 
-  const colSpan =
-    2 + 1 + (visibleColumns.size) + 2;
+  const colSpan = 2 + 1 + visibleColumns.size + 2;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
@@ -342,110 +513,21 @@ export function TableView({
                         </thead>
                         <tbody>
                           {groupTasks.map((task) => (
-                            <tr
+                            <TaskRow
                               key={task.id}
-                              className={`border-b last:border-0 transition-colors hover:bg-primary/[0.04] ${
-                                selected.has(task.id) ? "bg-primary/[0.06]" : ""
-                              }`}
-                            >
-                              <td className="px-3 py-2">
-                                <Checkbox
-                                  checked={selected.has(task.id)}
-                                  onCheckedChange={() => toggleSelected(task.id)}
-                                />
-                              </td>
-                              <td className="px-3 py-2 text-muted-foreground">
-                                {task.serial_no}
-                              </td>
-                              <td className="px-3 py-2 text-xs text-muted-foreground">
-                                {new Date(task.created_at).toLocaleDateString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                })}
-                              </td>
-                              <td className="px-3 py-2">
-                                <button
-                                  className="text-left font-medium transition-colors hover:text-primary"
-                                  onClick={() => onOpenTask(task)}
-                                >
-                                  {task.name}
-                                </button>
-                              </td>
-                              {visibleColumns.has("description") && (
-                                <td className="max-w-56 truncate px-3 py-2 text-muted-foreground">
-                                  {task.description || "—"}
-                                </td>
-                              )}
-                              {visibleColumns.has("priority") && (
-                                <td className="px-3 py-2">
-                                  <PrioritySelect
-                                    value={task.priority}
-                                    onChange={(priority) => patch(task, { priority })}
-                                  />
-                                </td>
-                              )}
-                              {visibleColumns.has("status") && (
-                                <td className="px-3 py-2">
-                                  <StatusSelect
-                                    value={task.status_id}
-                                    statuses={statuses}
-                                    onChange={(status_id) => patch(task, { status_id })}
-                                  />
-                                </td>
-                              )}
-                              {visibleColumns.has("dueDate") && (
-                                <td className="px-3 py-2">
-                                  <Input
-                                    type="date"
-                                    defaultValue={task.due_date ?? ""}
-                                    onChange={(e) =>
-                                      patch(task, { due_date: e.target.value || null })
-                                    }
-                                    className="h-7 w-full border-none bg-transparent px-1 text-xs shadow-none"
-                                  />
-                                </td>
-                              )}
-                              {visibleColumns.has("comments") && (
-                                <td className="px-3 py-2">
-                                  <button
-                                    onClick={() => onOpenTask(task)}
-                                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                                  >
-                                    <MessageSquare className="size-3.5" />
-                                    {commentCounts[task.id] ?? 0}
-                                  </button>
-                                </td>
-                              )}
-                              {canDelete ? (
-                                <td className="px-3 py-2">
-                                  <button
-                                    onClick={() => handleDeleteTask(task)}
-                                    className="text-muted-foreground hover:text-destructive"
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                  </button>
-                                </td>
-                              ) : (
-                                <td className="px-3 py-2">
-                                  <button
-                                    onClick={() => handleRequestDelete(task)}
-                                    disabled={requestedDeleteIds.has(task.id)}
-                                    title={
-                                      requestedDeleteIds.has(task.id)
-                                        ? "Delete request sent"
-                                        : "Request deletion"
-                                    }
-                                    className="text-muted-foreground hover:text-destructive disabled:cursor-default disabled:text-primary disabled:hover:text-primary"
-                                  >
-                                    {requestedDeleteIds.has(task.id) ? (
-                                      <Clock className="size-3.5" />
-                                    ) : (
-                                      <Trash2 className="size-3.5" />
-                                    )}
-                                  </button>
-                                </td>
-                              )}
-                            </tr>
+                              task={task}
+                              statuses={statuses}
+                              visibleColumns={visibleColumns}
+                              canDelete={canDelete}
+                              isSelected={selected.has(task.id)}
+                              commentCount={commentCounts[task.id] ?? 0}
+                              deleteRequested={requestedDeleteIds.has(task.id)}
+                              onToggleSelect={toggleSelected}
+                              onOpenTask={onOpenTask}
+                              onPatch={patch}
+                              onDelete={handleDeleteTask}
+                              onRequestDelete={handleRequestDelete}
+                            />
                           ))}
                           <tr>
                             <td colSpan={colSpan} className="px-3 py-2">
