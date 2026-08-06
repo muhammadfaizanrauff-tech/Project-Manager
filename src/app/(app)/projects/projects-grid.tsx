@@ -89,7 +89,13 @@ export function ProjectsGrid({
                         {project.name}
                       </h3>
                       <p className="text-xs text-muted-foreground">
-                        {project.manager?.full_name ?? "No manager assigned"}
+                        {project.managers.length === 0
+                          ? "No manager assigned"
+                          : project.managers.length === 1
+                            ? project.managers[0].full_name ?? "Unnamed"
+                            : `${project.managers[0].full_name ?? "Unnamed"} +${
+                                project.managers.length - 1
+                              }`}
                       </p>
                     </div>
                   </div>

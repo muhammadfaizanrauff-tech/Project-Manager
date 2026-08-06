@@ -26,13 +26,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { MultiSelect, type MultiSelectOption } from "@/components/multi-select";
 import { deleteProject, updateProject, type UpdateProjectState } from "../actions";
 import { requestProjectDeletion } from "./delete-request-actions";
@@ -52,7 +45,7 @@ export function EditProjectDialog({
     logo_url: string | null;
     start_date: string;
     end_date: string | null;
-    manager: { id: string; full_name: string | null } | null;
+    managers: { id: string; full_name: string | null }[];
     members: { id: string; full_name: string | null; role: string }[];
   };
   profiles: ProfileOption[];
@@ -61,10 +54,17 @@ export function EditProjectDialog({
   const [open, setOpen] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(project.logo_url);
   const [memberIds, setMemberIds] = useState<string[]>(project.members.map((m) => m.id));
+  const [managerIds, setManagerIds] = useState<string[]>(project.managers.map((m) => m.id));
   const [state, formAction, pending] = useActionState(updateProject, initialState);
   const [lastSavedAt, setLastSavedAt] = useState<number | undefined>();
 
-  const managerOptions = profiles.filter((p) => p.role === "admin" || p.role === "manager");
+  const managerOptions: MultiSelectOption[] = profiles
+    .filter((p) => p.role === "admin" || p.role === "manager")
+    .map((p) => ({
+      value: p.id,
+      label: p.full_name || "Unnamed user",
+      hint: p.role,
+    }));
   const memberOptions: MultiSelectOption[] = profiles.map((p) => ({
     value: p.id,
     label: p.full_name || "Unnamed user",
@@ -126,19 +126,16 @@ export function EditProjectDialog({
           {canAssignPeople && (
             <>
               <div className="flex flex-col gap-1.5">
-                <Label>Project manager</Label>
-                <Select name="managerId" defaultValue={project.manager?.id ?? undefined}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a manager" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {managerOptions.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.full_name || "Unnamed user"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Project managers</Label>
+                <MultiSelect
+                  options={managerOptions}
+                  selected={managerIds}
+                  onChange={setManagerIds}
+                  placeholder="Select one or more managers"
+                />
+                {managerIds.map((id) => (
+                  <input key={id} type="hidden" name="managerIds" value={id} />
+                ))}
               </div>
 
               <div className="flex flex-col gap-1.5">

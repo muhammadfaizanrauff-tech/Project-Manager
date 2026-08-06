@@ -30,7 +30,9 @@ export async function createProject(
   const canAssignPeople = profile.role === "admin" || profile.role === "manager";
 
   const name = String(formData.get("name") ?? "").trim();
-  const managerId = canAssignPeople ? String(formData.get("managerId") ?? "") || null : null;
+  const managerIds = canAssignPeople
+    ? Array.from(new Set(formData.getAll("managerIds").map(String).filter(Boolean)))
+    : [];
   const startDate = String(formData.get("startDate") ?? "") || undefined;
   const endDate = String(formData.get("endDate") ?? "") || null;
   const memberIds = canAssignPeople
@@ -67,7 +69,10 @@ export async function createProject(
     .insert({
       name,
       logo_url: logoUrl,
-      manager_id: managerId,
+      // Legacy single-manager column, kept in sync with the first manager so a
+      // deployment still reading it doesn't break. project_managers below is
+      // the source of truth.
+      manager_id: managerIds[0] ?? null,
       created_by: user.id,
       start_date: startDate,
       end_date: endDate,
@@ -102,8 +107,16 @@ export async function createProject(
       ),
     );
   }
-  if (managerId && !memberIds.includes(managerId)) {
-    await notifyProjectAssigned({ userId: managerId, projectName: name });
+  if (managerIds.length > 0) {
+    await supabase
+      .from("project_managers")
+      .insert(managerIds.map((userId) => ({ project_id: project.id, user_id: userId })));
+
+    await Promise.all(
+      managerIds
+        .filter((id) => !memberIds.includes(id))
+        .map((userId) => notifyProjectAssigned({ userId, projectName: name })),
+    );
   }
 
   revalidatePath("/projects");
@@ -153,6 +166,10 @@ export async function updateProject(
     logoUrl = service.storage.from("project-logos").getPublicUrl(path).data.publicUrl;
   }
 
+  const managerIds = canAssignPeople
+    ? Array.from(new Set(formData.getAll("managerIds").map(String).filter(Boolean)))
+    : [];
+
   const { error } = await supabase
     .from("projects")
     .update({
@@ -160,9 +177,9 @@ export async function updateProject(
       start_date: String(formData.get("startDate") ?? "") || undefined,
       end_date: String(formData.get("endDate") ?? "") || null,
       ...(logoUrl ? { logo_url: logoUrl } : {}),
-      ...(canAssignPeople
-        ? { manager_id: String(formData.get("managerId") ?? "") || null }
-        : {}),
+      // Legacy column tracks the first manager; project_managers below is the
+      // source of truth.
+      ...(canAssignPeople ? { manager_id: managerIds[0] ?? null } : {}),
     })
     .eq("id", projectId);
 
@@ -177,12 +194,39 @@ export async function updateProject(
     const memberIds = Array.from(
       new Set(formData.getAll("memberIds").map(String).filter(Boolean)),
     );
-    // Replace the roster wholesale — the form always submits the full list.
+    // Replace both rosters wholesale — the form always submits the full lists.
     await supabase.from("project_members").delete().eq("project_id", projectId);
     if (memberIds.length > 0) {
       await supabase
         .from("project_members")
         .insert(memberIds.map((userId) => ({ project_id: projectId, user_id: userId })));
+    }
+
+    // Managers are diffed rather than replaced, and additions are written
+    // before removals. Clearing the table first would strip the editor's own
+    // manager row, and the follow-up insert is permission-checked against
+    // can_manage_project — which they'd no longer pass, leaving the project
+    // with no managers at all.
+    const { data: existingManagers } = await supabase
+      .from("project_managers")
+      .select("user_id")
+      .eq("project_id", projectId);
+
+    const current = new Set((existingManagers ?? []).map((r) => r.user_id));
+    const toAdd = managerIds.filter((id) => !current.has(id));
+    const toRemove = Array.from(current).filter((id) => !managerIds.includes(id));
+
+    if (toAdd.length > 0) {
+      await supabase
+        .from("project_managers")
+        .insert(toAdd.map((userId) => ({ project_id: projectId, user_id: userId })));
+    }
+    if (toRemove.length > 0) {
+      await supabase
+        .from("project_managers")
+        .delete()
+        .eq("project_id", projectId)
+        .in("user_id", toRemove);
     }
   }
 

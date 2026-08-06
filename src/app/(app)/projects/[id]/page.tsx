@@ -70,7 +70,11 @@ export default async function ProjectDetailPage({
                 {project.name}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Managed by {project.manager?.full_name ?? "—"}
+                {project.managers.length > 0
+                  ? `Managed by ${project.managers
+                      .map((m) => m.full_name ?? "Unnamed")
+                      .join(", ")}`
+                  : "No manager assigned"}
               </p>
             </div>
           </div>
