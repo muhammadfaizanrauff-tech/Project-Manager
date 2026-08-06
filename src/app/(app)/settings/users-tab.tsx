@@ -33,6 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { HelpTip } from "@/components/help-tip";
 import type { ManagedUser } from "@/lib/users-admin";
 import { startImpersonation } from "../impersonate-actions";
 import {
@@ -327,17 +328,33 @@ export function UsersTab({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="flex max-w-2xl items-start gap-1.5 text-sm text-muted-foreground">
+          {role === "admin" ? (
+            <span>Everyone in the workspace, across every organization.</span>
+          ) : (
+            <span>
+              Everyone in your organizations. You can reset and switch into the{" "}
+              <strong>members</strong> among them; fellow managers are listed so you can assign
+              them to projects, but their accounts are not yours to touch.
+            </span>
+          )}
+          <HelpTip topic="roles">
+            Three roles: Admin (everything), Manager (their organizations&apos; people and their
+            assigned projects), Member (only the projects they&apos;re put on).
+          </HelpTip>
+        </p>
         <AddUserDialog role={role} />
       </div>
 
       <div className="overflow-x-auto rounded-2xl border">
-        <table className="w-full min-w-[640px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-4 py-2 font-medium">Name</th>
               <th className="px-4 py-2 font-medium">Email</th>
               <th className="px-4 py-2 font-medium">Role</th>
+              <th className="px-4 py-2 font-medium">Organizations</th>
               {role === "admin" && <th className="px-4 py-2 font-medium">Password</th>}
               <th className="px-4 py-2 font-medium">Switch</th>
               <th className="w-10 px-4 py-2" />
@@ -346,16 +363,39 @@ export function UsersTab({
           <tbody>
             {list.map((user) => {
               const isSelf = user.id === currentUserId;
-              // A manager can see other managers (read-only) but can only
-              // manage — delete, reset password — regular members.
-              const readOnlyForActor = role === "manager" && user.role === "manager" && !isSelf;
 
               return (
                 <tr key={user.id} className="border-t">
-                  <td className="px-4 py-2.5 font-medium">{user.full_name || "Unnamed"}</td>
+                  <td className="px-4 py-2.5 font-medium">
+                    {user.full_name || "Unnamed"}
+                    {isSelf && (
+                      <span className="ml-1.5 text-[11px] font-normal text-muted-foreground">
+                        (you)
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 text-muted-foreground">{user.email}</td>
                   <td className="px-4 py-2.5">
                     <RoleBadge role={user.role} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {user.organizations.length === 0 ? (
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                        None — can&apos;t be staffed
+                      </span>
+                    ) : (
+                      <span className="flex flex-wrap gap-1">
+                        {user.organizations.map((org) => (
+                          <Badge
+                            key={org}
+                            variant="secondary"
+                            className="rounded-full border-none text-[10px] font-normal"
+                          >
+                            {org}
+                          </Badge>
+                        ))}
+                      </span>
+                    )}
                   </td>
                   {role === "admin" && (
                     <td className="px-4 py-2.5">
@@ -368,14 +408,21 @@ export function UsersTab({
                     </td>
                   )}
                   <td className="px-4 py-2.5">
-                    {!isSelf && <SwitchToButton userId={user.id} />}
+                    {user.switchable ? (
+                      <SwitchToButton userId={user.id} />
+                    ) : (
+                      !isSelf && (
+                        <span className="text-[11px] text-muted-foreground">Not allowed</span>
+                      )
+                    )}
                   </td>
                   <td className="px-4 py-2.5">
-                    {!isSelf && !readOnlyForActor && (
+                    {user.manageable && !isSelf ? (
                       <DeleteUserDialog user={user} onConfirm={() => handleDelete(user)} />
-                    )}
-                    {readOnlyForActor && (
-                      <span className="text-[11px] text-muted-foreground">Read-only</span>
+                    ) : (
+                      !isSelf && (
+                        <span className="text-[11px] text-muted-foreground">Read-only</span>
+                      )
                     )}
                   </td>
                 </tr>
@@ -383,8 +430,10 @@ export function UsersTab({
             })}
             {list.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  No users yet.
+                <td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
+                  {role === "manager"
+                    ? "Nobody in your organizations yet. Ask the Admin to add you to one, or create a user above."
+                    : "No users yet."}
                 </td>
               </tr>
             )}

@@ -1,11 +1,27 @@
 "use client";
 
-import { KeyRound, Palette, Trash2, User, Users, Video } from "lucide-react";
+import {
+  Activity,
+  Building2,
+  FileUp,
+  KeyRound,
+  Palette,
+  Trash2,
+  User,
+  Users,
+  Video,
+} from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { AuditEntry } from "@/lib/audit-labels";
+import type { ImportBatch } from "@/lib/imports";
+import type { OrganizationDetail } from "@/lib/organizations";
 import type { ManagedUser } from "@/lib/users-admin";
+import { ActivityTab } from "./activity-tab";
 import { DeleteRequestsTab, type DeleteRequestRow } from "./delete-requests-tab";
+import { ImportsTab } from "./imports-tab";
 import { MeetingLinksTab } from "./meeting-links-tab";
+import { OrganizationsTab } from "./organizations-tab";
 import { PasswordRequestsTab, type PasswordRequestRow } from "./password-requests-tab";
 import { ProfileTab } from "./profile-tab";
 import { StatusesTab } from "./statuses-tab";
@@ -20,6 +36,9 @@ export function SettingsTabs({
   meetingLinks,
   deleteRequests,
   passwordRequests,
+  organizations,
+  importBatches,
+  auditEntries,
 }: {
   role: string;
   currentUserId: string;
@@ -29,8 +48,12 @@ export function SettingsTabs({
   meetingLinks: { id: string; label: string; url: string }[];
   deleteRequests: DeleteRequestRow[];
   passwordRequests: PasswordRequestRow[];
+  organizations: OrganizationDetail[];
+  importBatches: ImportBatch[];
+  auditEntries: AuditEntry[];
 }) {
   const canManageUsers = role === "admin" || role === "manager";
+  const isAdmin = role === "admin";
 
   return (
     <Tabs defaultValue="profile">
@@ -39,10 +62,31 @@ export function SettingsTabs({
           <User className="size-3.5" />
           Profile
         </TabsTrigger>
+        {isAdmin && (
+          <TabsTrigger value="organizations" className="gap-1.5">
+            <Building2 className="size-3.5" />
+            Organizations
+          </TabsTrigger>
+        )}
         {canManageUsers && (
           <TabsTrigger value="users" className="gap-1.5">
             <Users className="size-3.5" />
             Users
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="activity" className="gap-1.5">
+          <Activity className="size-3.5" />
+          My Activity
+        </TabsTrigger>
+        {canManageUsers && (
+          <TabsTrigger value="imports" className="gap-1.5">
+            <FileUp className="size-3.5" />
+            Import History
+            {importBatches.length > 0 && (
+              <span className="ml-0.5 rounded-full bg-primary/15 px-1.5 text-[10px] font-semibold text-primary">
+                {importBatches.length}
+              </span>
+            )}
           </TabsTrigger>
         )}
         {role === "admin" && (
@@ -83,6 +127,15 @@ export function SettingsTabs({
         <ProfileTab role={role} fullName={profile.fullName} email={profile.email} />
       </TabsContent>
 
+      {isAdmin && (
+        <TabsContent value="organizations" className="pt-4">
+          <OrganizationsTab
+            organizations={organizations}
+            people={users.map((u) => ({ id: u.id, full_name: u.full_name, role: u.role }))}
+          />
+        </TabsContent>
+      )}
+
       {canManageUsers && (
         <TabsContent value="users" className="pt-4">
           <UsersTab
@@ -90,6 +143,22 @@ export function SettingsTabs({
             currentUserId={currentUserId}
             users={users}
           />
+        </TabsContent>
+      )}
+
+      <TabsContent value="activity" className="pt-4">
+        <ActivityTab
+          entries={auditEntries}
+          isAdmin={isAdmin}
+          people={users
+            .filter((u) => u.id !== currentUserId)
+            .map((u) => ({ id: u.id, full_name: u.full_name, role: u.role }))}
+        />
+      </TabsContent>
+
+      {canManageUsers && (
+        <TabsContent value="imports" className="pt-4">
+          <ImportsTab batches={importBatches} />
         </TabsContent>
       )}
 

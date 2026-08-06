@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { HelpTip } from "@/components/help-tip";
 import { PrioritySelect, StatusSelect } from "@/components/task-chips";
 import type { DependencyRef, Subtask, TimeLog, Label as LabelRow } from "@/lib/task-extras";
 import type { CommentRecord, Status, TaskRecord } from "@/lib/tasks";
@@ -161,6 +162,14 @@ export function TaskSheet({
             <TabsTrigger value="links">Links</TabsTrigger>
             <TabsTrigger value="time">Time</TabsTrigger>
           </TabsList>
+          <span className="ml-1 self-center">
+            <HelpTip topic="tasks">
+              <strong>Checklist</strong> is sub-steps you tick off.{" "}
+              <strong>Links</strong> holds labels and dependencies — a task waiting on an
+              unfinished one is flagged Blocked. <strong>Time</strong> is the estimate and the
+              time actually spent.
+            </HelpTip>
+          </span>
 
           <div className="flex-1 overflow-y-auto px-4 pb-4">
             <TabsContent value="details" className="flex flex-col gap-4 pt-3">
@@ -235,6 +244,10 @@ export function TaskSheet({
                 <Label className="flex items-center gap-1.5">
                   <Repeat className="size-3.5" />
                   Repeats
+                  <HelpTip topic="tasks">
+                    A repeating task creates its next occurrence automatically the moment you mark
+                    this one Done, with the due date rolled forward.
+                  </HelpTip>
                 </Label>
                 <Select
                   value={task.recurrence}
@@ -263,7 +276,14 @@ export function TaskSheet({
               </div>
 
               <div className="flex flex-col gap-2 border-t pt-4">
-                <Label>Comments</Label>
+                <Label className="flex items-center gap-1.5">
+                  Comments
+                  <HelpTip topic="notifications">
+                    Posting a comment notifies the task&apos;s assignee, whoever created it, and
+                    the project&apos;s managers. Clicking that notification brings them straight
+                    back to this task.
+                  </HelpTip>
+                </Label>
                 <div className="flex flex-col gap-3">
                   {comments.length === 0 && (
                     <p className="text-xs text-muted-foreground">No comments yet.</p>

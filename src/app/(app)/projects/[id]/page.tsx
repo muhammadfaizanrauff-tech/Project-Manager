@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
-import { CalendarDays, FolderKanban, ListChecks } from "lucide-react";
+import { Building2, CalendarDays, FolderKanban, ListChecks } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
 import { FadeIn } from "@/components/motion/fade-in";
+import { HelpTip } from "@/components/help-tip";
 import { getCurrentProfile } from "@/lib/auth";
-import { getProject, listAssignableProfiles } from "@/lib/projects";
+import { listImportBatchesForProject } from "@/lib/imports";
+import { listOrganizations } from "@/lib/organizations";
+import { getProject, listAssignablePeopleWithOrgs } from "@/lib/projects";
 import { getProjectWorkspaceData } from "@/lib/tasks";
 import { CloneProjectButton } from "./clone-project-button";
 import { DeleteProjectButton, EditProjectDialog } from "./project-settings";
@@ -32,14 +35,22 @@ function initials(name: string | null) {
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  // `?task=<id>` opens that task's drawer straight away — this is what a
+  // notification links to. `?import=<batchId>` pre-filters the table to one
+  // import run.
+  searchParams: Promise<{ task?: string; import?: string }>;
 }) {
   const { id } = await params;
-  const [project, workspace, profile] = await Promise.all([
+  const { task: initialTaskId, import: initialImportBatchId } = await searchParams;
+
+  const [project, workspace, profile, importBatches] = await Promise.all([
     getProject(id),
     getProjectWorkspaceData(id),
     getCurrentProfile(),
+    listImportBatchesForProject(id),
   ]);
 
   if (!project) notFound();
@@ -47,9 +58,13 @@ export default async function ProjectDetailPage({
   // Members add and edit freely (never gated in the UI) but never delete —
   // they raise delete requests instead, including in projects they created.
   const isStaff = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin";
   // Mirrors can_edit_project in schema-v6.sql: staff, or whoever created it.
   const canEdit = isStaff || project.created_by === profile?.id;
-  const profiles = isStaff ? await listAssignableProfiles() : [];
+
+  const [people, organizations] = isStaff
+    ? await Promise.all([listAssignablePeopleWithOrgs(), listOrganizations()])
+    : [[], []];
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-6">
@@ -97,8 +112,10 @@ export default async function ProjectDetailPage({
             {canEdit && (
               <EditProjectDialog
                 project={project}
-                profiles={profiles}
+                people={people}
+                organizations={organizations}
                 canAssignPeople={isStaff}
+                isAdmin={isAdmin}
               />
             )}
             {isStaff && <CloneProjectButton projectId={project.id} />}
@@ -113,6 +130,16 @@ export default async function ProjectDetailPage({
         </div>
 
         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+          {project.organization_name && (
+            <span className="flex items-center gap-1.5">
+              <Building2 className="size-3.5" />
+              {project.organization_name}
+              <HelpTip topic="organizations">
+                The organization this project belongs to. Only people in it can be staffed onto
+                the project.
+              </HelpTip>
+            </span>
+          )}
           <span className="flex items-center gap-1.5">
             <CalendarDays className="size-3.5" />
             Started {formatDate(project.start_date)}
@@ -140,6 +167,11 @@ export default async function ProjectDetailPage({
         initialLabels={workspace.labels}
         canDelete={isStaff}
         canImport={isStaff}
+        importBatches={importBatches}
+        initialTaskId={initialTaskId}
+        initialImportBatchId={initialImportBatchId}
+        currentUserName={profile?.full_name ?? null}
+        organizationName={project.organization_name}
       />
     </div>
   );

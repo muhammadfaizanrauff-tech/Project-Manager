@@ -5,6 +5,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { HelpTip } from "@/components/help-tip";
 import { createStatus, deleteStatus } from "./actions";
 
 type StatusRow = { id: string; label: string; color: string; position: number };
@@ -35,6 +36,17 @@ export function StatusesTab({ statuses }: { statuses: StatusRow[] }) {
 
   return (
     <div className="flex max-w-lg flex-col gap-4">
+      <p className="text-sm text-muted-foreground">
+        The columns of your workflow. Whatever colour you set here is the colour the status wears
+        everywhere — the table chips, the Kanban board, the dashboard breakdown and the Status
+        column of the PDF report.
+        <HelpTip topic="statuses" className="ml-1 align-text-bottom">
+          Two labels are load-bearing: <strong>Done</strong> is what every completion figure
+          counts and what closes a recurring task, and{" "}
+          <strong>Waiting for Feedback</strong> / <strong>Feedback Asked</strong> email the
+          project&apos;s manager. Renaming Done will make your dashboards read zero.
+        </HelpTip>
+      </p>
       <div className="flex flex-col gap-2 rounded-2xl border p-3">
         {list.map((status) => (
           <div key={status.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted">

@@ -1,7 +1,50 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { recordAudit } from "@/lib/audit";
+import { projectLeads, publishEvent } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/server";
+
+/**
+ * A delete request is a member asking for something they can't do themselves,
+ * so it has to reach someone who can: the project's leads see it on their
+ * notification tab, and it lands on the Admin's project board. Without this
+ * the request would sit silently in Settings until somebody happened to look.
+ */
+async function announceDeleteRequest(
+  projectId: string,
+  actorId: string | undefined,
+  label: string,
+  kind: "task" | "project",
+) {
+  const supabase = await createClient();
+  const [{ data: profile }, leads] = await Promise.all([
+    actorId
+      ? supabase.from("profiles").select("full_name").eq("id", actorId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    projectLeads(projectId),
+  ]);
+
+  const who = profile?.full_name ?? "Someone";
+
+  await publishEvent({
+    projectId,
+    actorId,
+    type: "delete_request",
+    title: `${who} asked to delete ${kind === "project" ? "the project" : ""} "${label}"`,
+    body: "Waiting on an Admin to approve or reject it in Settings → Delete Requests.",
+    meta: { kind },
+    recipientIds: leads,
+  });
+
+  await recordAudit({
+    actorId,
+    action: "delete_request.create",
+    entityType: kind,
+    entityName: label,
+    projectId,
+  });
+}
 
 export async function requestTaskDeletion(
   projectId: string,
@@ -18,6 +61,8 @@ export async function requestTaskDeletion(
     task_name: taskName,
   });
   if (error) return { error: error.message };
+
+  void announceDeleteRequest(projectId, user.user?.id, taskName, "task");
 
   revalidatePath(`/projects/${projectId}`);
   return { ok: true };
@@ -46,6 +91,8 @@ export async function requestProjectDeletion(projectId: string, projectName: str
   });
   if (error) return { error: error.message };
 
+  void announceDeleteRequest(projectId, user.user?.id, projectName, "project");
+
   revalidatePath(`/projects/${projectId}`);
   return { ok: true };
 }
@@ -66,6 +113,13 @@ export async function requestBulkTaskDeletion(
     })),
   );
   if (error) return { error: error.message };
+
+  void announceDeleteRequest(
+    projectId,
+    user.user?.id,
+    `${tasks.length} task${tasks.length === 1 ? "" : "s"}`,
+    "task",
+  );
 
   revalidatePath(`/projects/${projectId}`);
   return { ok: true };

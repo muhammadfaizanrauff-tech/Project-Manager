@@ -26,18 +26,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MultiSelect, type MultiSelectOption } from "@/components/multi-select";
+import type { AssignablePerson } from "@/lib/projects";
 import { deleteProject, updateProject, type UpdateProjectState } from "../actions";
+import { ProjectPeopleFields, type OrgOption } from "../project-people-fields";
 import { requestProjectDeletion } from "./delete-request-actions";
-
-type ProfileOption = { id: string; full_name: string | null; role: string };
 
 const initialState: UpdateProjectState = {};
 
 export function EditProjectDialog({
   project,
-  profiles,
+  people,
+  organizations,
   canAssignPeople,
+  isAdmin,
 }: {
   project: {
     id: string;
@@ -45,11 +46,14 @@ export function EditProjectDialog({
     logo_url: string | null;
     start_date: string;
     end_date: string | null;
+    organization_id: string | null;
     managers: { id: string; full_name: string | null }[];
     members: { id: string; full_name: string | null; role: string }[];
   };
-  profiles: ProfileOption[];
+  people: AssignablePerson[];
+  organizations: OrgOption[];
   canAssignPeople: boolean;
+  isAdmin: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(project.logo_url);
@@ -57,19 +61,6 @@ export function EditProjectDialog({
   const [managerIds, setManagerIds] = useState<string[]>(project.managers.map((m) => m.id));
   const [state, formAction, pending] = useActionState(updateProject, initialState);
   const [lastSavedAt, setLastSavedAt] = useState<number | undefined>();
-
-  const managerOptions: MultiSelectOption[] = profiles
-    .filter((p) => p.role === "admin" || p.role === "manager")
-    .map((p) => ({
-      value: p.id,
-      label: p.full_name || "Unnamed user",
-      hint: p.role,
-    }));
-  const memberOptions: MultiSelectOption[] = profiles.map((p) => ({
-    value: p.id,
-    label: p.full_name || "Unnamed user",
-    hint: p.role,
-  }));
 
   // Close once per successful save. Comparing timestamps (rather than a
   // boolean) means reopening the dialog later doesn't immediately re-close it,
@@ -124,33 +115,18 @@ export function EditProjectDialog({
           </div>
 
           {canAssignPeople && (
-            <>
-              <div className="flex flex-col gap-1.5">
-                <Label>Project managers</Label>
-                <MultiSelect
-                  options={managerOptions}
-                  selected={managerIds}
-                  onChange={setManagerIds}
-                  placeholder="Select one or more managers"
-                />
-                {managerIds.map((id) => (
-                  <input key={id} type="hidden" name="managerIds" value={id} />
-                ))}
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label>Assigned members</Label>
-                <MultiSelect
-                  options={memberOptions}
-                  selected={memberIds}
-                  onChange={setMemberIds}
-                  placeholder="Select team members"
-                />
-                {memberIds.map((id) => (
-                  <input key={id} type="hidden" name="memberIds" value={id} />
-                ))}
-              </div>
-            </>
+            <ProjectPeopleFields
+              organizations={organizations}
+              people={people}
+              // Only the Admin may move a project between organizations —
+              // for a Manager the organization is fixed at creation.
+              canChooseOrganization={isAdmin}
+              defaultOrganizationId={project.organization_id}
+              managerIds={managerIds}
+              memberIds={memberIds}
+              onManagerIdsChange={setManagerIds}
+              onMemberIdsChange={setMemberIds}
+            />
           )}
 
           <div className="grid grid-cols-2 gap-4">

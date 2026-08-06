@@ -4,9 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { LayoutDashboard, LayoutGrid, Table as TableIcon } from "lucide-react";
 
+import { HelpTip } from "@/components/help-tip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
+import type { ImportBatch } from "@/lib/imports";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import { listComments } from "./comment-actions";
 import { ExportMenu } from "./export-menu";
@@ -36,6 +38,11 @@ export function ProjectWorkspace({
   initialLabels,
   canDelete,
   canImport,
+  importBatches,
+  initialTaskId,
+  initialImportBatchId,
+  currentUserName,
+  organizationName,
 }: {
   projectId: string;
   projectName: string;
@@ -47,13 +54,20 @@ export function ProjectWorkspace({
   initialLabels: { id: string; project_id: string; name: string; color: string }[];
   canDelete: boolean;
   canImport: boolean;
+  importBatches: ImportBatch[];
+  initialTaskId?: string;
+  initialImportBatchId?: string;
+  currentUserName: string | null;
+  organizationName: string | null;
 }) {
   const [categories, setCategories] = useState(initialCategories);
   const [tasks, setTasks] = useState(initialTasks);
   const [commentCounts, setCommentCounts] = useState(initialCommentCounts);
   const [labels] = useState(initialLabels);
   const [view, setView] = useState<"table" | "kanban" | "dashboard">("table");
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // `?task=<id>` — following a notification lands here with the drawer already
+  // open on the task the notification was about.
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(initialTaskId ?? null);
 
   const selectedTask = useMemo(
     () => tasks.find((t) => t.id === selectedTaskId) ?? null,
@@ -131,6 +145,7 @@ export function ProjectWorkspace({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
           <TabsList>
             <TabsTrigger value="table">
@@ -147,17 +162,37 @@ export function ProjectWorkspace({
             </TabsTrigger>
           </TabsList>
         </Tabs>
+        <HelpTip topic="tasks">
+          <strong>Table</strong> groups tasks under their categories and lets you edit inline.
+          <strong> Kanban</strong> shows the same tasks as cards you drag between status columns.
+          <strong> Dashboard</strong> charts this project on its own.
+        </HelpTip>
+        </div>
 
         {view !== "dashboard" && (
           <div className="flex items-center gap-2">
-            {canImport && <ImportDialog projectId={projectId} categories={categories} />}
+            {canImport && (
+              <>
+                <ImportDialog projectId={projectId} categories={categories} />
+                <HelpTip topic="import-history">
+                  Bring tasks in from a CSV, Excel or JSON file. Every import is recorded in
+                  Settings → Import History, and you can filter the table to one import later.
+                </HelpTip>
+              </>
+            )}
             <ExportMenu
               projectId={projectId}
               projectName={projectName}
               categories={categories}
               tasks={tasks}
               statuses={statuses}
+              generatedBy={currentUserName}
+              organizationName={organizationName}
             />
+            <HelpTip topic="reports">
+              PDF is the report you hand to someone — grouped by category, colour-coded, and
+              stamped with your name. Excel is a flat sheet. JSON is a full backup.
+            </HelpTip>
           </div>
         )}
       </div>
@@ -174,6 +209,8 @@ export function ProjectWorkspace({
           onTasksChange={setTasks}
           onTaskUpdate={updateTaskLocal}
           onOpenTask={handleOpenTask}
+          importBatches={importBatches}
+          initialImportBatchId={initialImportBatchId}
         />
       )}
       {view === "kanban" && (

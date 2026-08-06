@@ -1,7 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { recordAudit } from "@/lib/audit";
 import { getCurrentProfile } from "@/lib/auth";
+import { publishEvent, projectAudience } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/server";
 
 export type ImportRow = {
@@ -16,6 +18,7 @@ export type ImportRow = {
 export type ImportSummary = {
   created: number;
   warnings: string[];
+  batchId?: string;
 };
 
 const VALID_PRIORITIES = new Set(["high", "medium", "low"]);
@@ -23,6 +26,7 @@ const VALID_PRIORITIES = new Set(["high", "medium", "low"]);
 export async function bulkImportTasks(
   projectId: string,
   rows: ImportRow[],
+  fileName = "Pasted rows",
 ): Promise<ImportSummary | { error: string }> {
   const profile = await getCurrentProfile();
   if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
@@ -119,11 +123,63 @@ export async function bulkImportTasks(
     return { error: "No valid rows to import — every row needs a task name." };
   }
 
-  const { error: insertError } = await supabase.from("tasks").insert(validRows);
+  // The batch row is written *before* the tasks so every task can point back
+  // at it. That's what makes "show me only what came in from this file"
+  // possible later, in the table's Filter → Imported batch section.
+  const { data: batch } = await supabase
+    .from("import_batches")
+    .insert({
+      project_id: projectId,
+      file_name: fileName,
+      source: "project",
+      imported_by: user.user?.id,
+      row_count: rows.length,
+      created_count: validRows.length,
+      warnings,
+    })
+    .select("id")
+    .single();
+
+  const { error: insertError } = await supabase
+    .from("tasks")
+    .insert(validRows.map((row) => ({ ...row, import_batch_id: batch?.id ?? null })));
   if (insertError) {
+    // Don't leave a batch claiming tasks that were never created.
+    if (batch?.id) await supabase.from("import_batches").delete().eq("id", batch.id);
     return { error: `Import failed: ${insertError.message}` };
   }
 
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name")
+    .eq("id", projectId)
+    .maybeSingle();
+
+  void recordAudit({
+    actorId: user.user?.id,
+    action: "import.run",
+    entityType: "import",
+    entityId: batch?.id ?? null,
+    entityName: fileName,
+    projectId,
+    projectName: project?.name ?? null,
+    meta: { created: validRows.length, rows: rows.length, warnings: warnings.length },
+  });
+
+  void projectAudience(projectId).then((recipients) =>
+    publishEvent({
+      projectId,
+      actorId: user.user?.id,
+      type: "import",
+      title: `${profile.full_name ?? "Someone"} imported ${validRows.length} task${
+        validRows.length === 1 ? "" : "s"
+      }`,
+      body: `From "${fileName}" into ${project?.name ?? "the project"}.`,
+      meta: { batchId: batch?.id, fileName },
+      recipientIds: recipients,
+    }),
+  );
+
   revalidatePath(`/projects/${projectId}`);
-  return { created: validRows.length, warnings };
+  return { created: validRows.length, warnings, batchId: batch?.id };
 }

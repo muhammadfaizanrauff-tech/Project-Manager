@@ -25,6 +25,8 @@ export type TaskRecord = {
   updated_at: string;
   estimate_minutes: number | null;
   recurrence: "none" | "daily" | "weekly" | "monthly";
+  /** Set when the task arrived through a CSV/Excel import (schema-v10.sql). */
+  import_batch_id: string | null;
 };
 
 export type CategoryRecord = {
@@ -66,7 +68,7 @@ export async function getProjectWorkspaceData(
     supabase
       .from("tasks")
       .select(
-        "id, project_id, category_id, serial_no, name, description, priority, status_id, due_date, assignee_id, position, created_by, created_at, updated_at, estimate_minutes, recurrence",
+        "id, project_id, category_id, serial_no, name, description, priority, status_id, due_date, assignee_id, position, created_by, created_at, updated_at, estimate_minutes, recurrence, import_batch_id",
       )
       .eq("project_id", projectId)
       .order("position", { ascending: true }),

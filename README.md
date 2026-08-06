@@ -20,12 +20,22 @@ Created by Faizan Rauf.
 
 2. **Create a Supabase project** at [supabase.com](https://supabase.com/dashboard).
 
-3. **Run the schema.** In your Supabase project, open **SQL Editor → New query**, paste the
-   entire contents of [`schema.sql`](./schema.sql), and click **Run**. This creates all
-   tables, RLS policies, triggers, and seeds the default status list. Then do the same
-   with [`schema-v2.sql`](./schema-v2.sql) (subtasks, dependencies, labels, time
-   tracking, recurrence, activity log, favorites, notifications) — both files are
-   idempotent and safe to re-run.
+3. **Run the schema.** In your Supabase project, open **SQL Editor → New query** and run,
+   in order:
+
+   | File | What it adds |
+   |---|---|
+   | [`schema.sql`](./schema.sql) | Core tables, RLS policies, triggers, default statuses |
+   | [`schema-v2.sql`](./schema-v2.sql) | Subtasks, dependencies, labels, time tracking, recurrence, favourites, notifications |
+   | [`schema-catch-up.sql`](./schema-catch-up.sql) | Everything from v3 through v10, concatenated |
+
+   Every file is idempotent (`create table if not exists`, `drop policy if exists` …
+   `create policy`), so re-running any of them is safe. An **existing deployment**
+   only needs `schema-catch-up.sql` — or just [`schema-v10.sql`](./schema-v10.sql) if
+   it is already on v9.
+
+   **v10 is a significant change** — it introduces Organizations and removes every
+   "default" visibility rule. See *Organizations & visibility* below before running it.
 
 4. **Create a storage bucket for project logos.** Copy `.env.local` from the example below,
    fill in your Supabase keys, then run:
@@ -71,6 +81,35 @@ Created by Faizan Rauf.
    Open [http://localhost:3000](http://localhost:3000) and sign in with the Admin
    account you just created.
 
+## Organizations & visibility (schema-v10)
+
+The hierarchy is **Organization → Project → Category → Task**, and two rules decide
+who sees what:
+
+- **Organization membership decides who you can *see*.** A Manager placed in an
+  organization can find that organization's people when staffing a project, and
+  nobody outside it. One company's manager never learns another company's staff list.
+- **Project assignment decides what you can *open*.** A project is visible only to the
+  Admin, its assigned managers, its assigned members, and whoever created it. There is
+  no role-wide or organization-wide default view — a new project is visible to its
+  creator alone until someone is assigned.
+
+Applying `schema-v10.sql` to a database that already has data creates a single
+**"Main Organization"**, puts every existing user in it, and files every existing
+project under it — so nothing disappears on upgrade. Split it into real organizations
+from **Settings → Organizations** afterwards.
+
+Managers may switch into (impersonate) only **Members of their own organizations** —
+never a fellow manager, and never the Admin.
+
+## The Handbook
+
+The app documents itself. **`/handbook`** is a full manual covering the hierarchy, a
+system-map diagram, the complete role/permission matrix, and every feature. The small
+**?** markers throughout the UI each link to the relevant handbook section, so the ids
+in `src/app/(app)/handbook/handbook-content.tsx` are load-bearing — rename the titles
+freely, but keep the section ids stable.
+
 ## Security note: encrypted credentials
 
 The `credentials` table stores each user's password **encrypted** (AES-256-GCM) using
@@ -113,8 +152,14 @@ From then on, every `git push` to your main branch redeploys automatically.
 
 ## Project structure
 
-- `schema.sql` — full database schema, RLS policies, triggers, seed data.
-- `src/app/(app)/` — authenticated app shell (dashboard, projects, settings).
+- `schema.sql`, `schema-v2.sql` … `schema-v10.sql` — the database, applied in order.
+  `schema-catch-up.sql` bundles v3–v10 for convenience.
+- `src/app/(app)/` — authenticated app shell (dashboard, projects, notifications,
+  settings, handbook).
 - `src/app/(app)/projects/[id]/` — project workspace: table/Kanban/dashboard views,
   CSV import, export, comments.
-- `src/lib/` — Supabase clients, auth helpers, data-fetching functions, email/crypto utilities.
+- `src/app/(app)/notifications/` — personal notification list, plus the Admin's
+  per-project activity board.
+- `src/app/(app)/handbook/` — the in-app manual and system-map diagram.
+- `src/lib/` — Supabase clients, auth helpers, data-fetching functions, email/crypto
+  utilities, plus `organizations.ts`, `notifications.ts`, `audit.ts` and `imports.ts`.

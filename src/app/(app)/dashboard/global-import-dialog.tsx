@@ -61,6 +61,8 @@ export function GlobalImportDialog() {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<Partial<Record<keyof ImportRow, string>>>({});
   const [result, setResult] = useState<ImportSummary | { error: string } | null>(null);
+  // Recorded against the import batch so the history can name the source file.
+  const [fileName, setFileName] = useState("Uploaded file");
 
   useEffect(() => {
     if (open) listProjectsForImport().then(setProjects);
@@ -120,6 +122,7 @@ export function GlobalImportDialog() {
   }
 
   async function handleFile(file: File) {
+    setFileName(file.name);
     const { default: Papa } = await import("papaparse");
     Papa.parse<Record<string, string>>(file, {
       header: true,
@@ -158,7 +161,7 @@ export function GlobalImportDialog() {
   async function handleConfirm() {
     if (!projectId) return;
     setPending(true);
-    const result = await bulkImportTasks(projectId, mappedRows());
+    const result = await bulkImportTasks(projectId, mappedRows(), fileName);
     setPending(false);
     setResult(result);
     setStep("result");

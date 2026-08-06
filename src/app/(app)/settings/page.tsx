@@ -1,5 +1,9 @@
 import { FadeIn } from "@/components/motion/fade-in";
+import { HelpTip } from "@/components/help-tip";
+import { listMyAudit } from "@/lib/audit";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
+import { listImportBatches } from "@/lib/imports";
+import { listOrganizationsWithMembers } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 import { listManagedUsers } from "@/lib/users-admin";
 import type { DeleteRequestRow } from "./delete-requests-tab";
@@ -9,12 +13,22 @@ import { SettingsTabs } from "./settings-tabs";
 export default async function SettingsPage() {
   const [profile, user] = await Promise.all([getCurrentProfile(), getCurrentUser()]);
   const role = profile?.role ?? "member";
+  const isStaff = role === "admin" || role === "manager";
 
   const supabase = await createClient();
 
-  const [users, statuses, meetingLinksRes, deleteRequestsRes, passwordRequestsRes] = await Promise.all([
-    role === "admin" || role === "manager"
-      ? listManagedUsers(role)
+  const [
+    users,
+    statuses,
+    meetingLinksRes,
+    deleteRequestsRes,
+    passwordRequestsRes,
+    organizations,
+    importBatches,
+    auditEntries,
+  ] = await Promise.all([
+    isStaff && user
+      ? listManagedUsers(user.id, role as "admin" | "manager")
       : Promise.resolve([]),
     role === "admin"
       ? supabase.from("statuses").select("id, label, color, position").order("position")
@@ -38,12 +52,22 @@ export default async function SettingsPage() {
           .eq("status", "pending")
           .order("created_at")
       : Promise.resolve({ data: [] }),
+    role === "admin" ? listOrganizationsWithMembers() : Promise.resolve([]),
+    isStaff ? listImportBatches() : Promise.resolve([]),
+    // Everyone's own activity — RLS keeps this to the caller's own rows.
+    listMyAudit(),
   ]);
 
   return (
     <div className="flex flex-1 flex-col gap-6">
       <FadeIn>
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+          Settings
+          <HelpTip topic="settings" side="right">
+            Your profile and password, plus — depending on your role — organizations, users,
+            workflow statuses, import history and pending requests.
+          </HelpTip>
+        </h1>
         <p className="text-sm text-muted-foreground">
           Manage your profile{role !== "member" ? ", team, and workspace options" : ""}.
         </p>
@@ -61,6 +85,9 @@ export default async function SettingsPage() {
         meetingLinks={meetingLinksRes.data ?? []}
         deleteRequests={(deleteRequestsRes.data ?? []) as unknown as DeleteRequestRow[]}
         passwordRequests={(passwordRequestsRes.data ?? []) as unknown as PasswordRequestRow[]}
+        organizations={organizations}
+        importBatches={importBatches}
+        auditEntries={auditEntries}
       />
     </div>
   );

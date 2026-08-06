@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import {
+  Bell,
+  BookOpen,
   ChevronsLeft,
   ChevronsRight,
   FolderKanban,
@@ -16,7 +18,9 @@ import {
 } from "lucide-react";
 
 import { stopImpersonation } from "@/app/(app)/impersonate-actions";
+import { BackButton } from "@/components/back-button";
 import { Logo } from "@/components/logo";
+import { NotificationBell } from "@/components/notification-bell";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -59,6 +63,7 @@ function NavLink({
   active,
   collapsed,
   onNavigate,
+  badge = 0,
 }: {
   href: string;
   label: string;
@@ -66,6 +71,7 @@ function NavLink({
   active: boolean;
   collapsed: boolean;
   onNavigate?: () => void;
+  badge?: number;
 }) {
   const content = (
     <Link
@@ -86,6 +92,14 @@ function NavLink({
       )}
       <Icon className="relative z-10 size-4.5 shrink-0" />
       {!collapsed && <span className="relative z-10 truncate">{label}</span>}
+      {badge > 0 &&
+        (collapsed ? (
+          <span className="absolute right-1.5 top-1.5 z-10 size-2 rounded-full bg-primary" />
+        ) : (
+          <span className="relative z-10 ml-auto rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-4 text-primary-foreground">
+            {badge > 99 ? "99+" : badge}
+          </span>
+        ))}
     </Link>
   );
 
@@ -106,11 +120,13 @@ function SidebarContent({
   onNavigate,
   navLinks,
   favorites,
+  unreadCount,
 }: {
   collapsed: boolean;
   onNavigate?: () => void;
   navLinks: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
   favorites: { id: string; name: string }[];
+  unreadCount: number;
 }) {
   const pathname = usePathname();
 
@@ -123,6 +139,7 @@ function SidebarContent({
           active={isActive(pathname, link.href)}
           collapsed={collapsed}
           onNavigate={onNavigate}
+          badge={link.href === "/notifications" ? unreadCount : 0}
         />
       ))}
 
@@ -152,15 +169,19 @@ export function AppShell({
   name,
   email,
   role,
+  userId,
   favorites,
   impersonating,
+  unreadCount,
   children,
 }: {
   name: string;
   email: string;
   role: string;
+  userId: string;
   favorites: { id: string; name: string }[];
   impersonating?: boolean;
+  unreadCount: number;
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -183,7 +204,9 @@ export function AppShell({
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/projects", label: "Projects", icon: FolderKanban },
+    { href: "/notifications", label: "Notifications", icon: Bell },
     { href: "/settings", label: "Settings", icon: SettingsIcon },
+    { href: "/handbook", label: "Handbook", icon: BookOpen },
   ];
 
   return (
@@ -202,7 +225,12 @@ export function AppShell({
           </Link>
         </div>
 
-        <SidebarContent collapsed={collapsed} navLinks={navLinks} favorites={favorites} />
+        <SidebarContent
+          collapsed={collapsed}
+          navLinks={navLinks}
+          favorites={favorites}
+          unreadCount={unreadCount}
+        />
 
         <div className="flex flex-col gap-2 p-3">
           <Button
@@ -236,6 +264,7 @@ export function AppShell({
               collapsed={false}
               navLinks={navLinks}
               favorites={favorites}
+              unreadCount={unreadCount}
               onNavigate={() => setMobileOpen(false)}
             />
           </div>
@@ -244,17 +273,22 @@ export function AppShell({
 
       {/* Main column */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col bg-gradient-to-br from-background via-background to-primary/[0.035]">
-        <header className="glass-surface sticky top-0 z-40 flex h-14 items-center justify-between border-b px-4 sm:px-6">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="sm:hidden"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-          >
-            <Menu className="size-5" />
-          </Button>
+        <header className="glass-surface sticky top-0 z-40 flex h-14 items-center justify-between gap-2 border-b px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="sm:hidden"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open menu"
+            >
+              <Menu className="size-5" />
+            </Button>
+            {/* Renders itself away when there's no history to return to. */}
+            <BackButton />
+          </div>
           <div className="flex items-center gap-1.5">
+            <NotificationBell userId={userId} initialUnread={unreadCount} />
             <ThemeToggle />
             <UserMenu name={name} email={email} role={role} />
           </div>

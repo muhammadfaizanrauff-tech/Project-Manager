@@ -16,19 +16,22 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MultiSelect, type MultiSelectOption } from "@/components/multi-select";
+import type { AssignablePerson } from "@/lib/projects";
 import { createProject, type CreateProjectState } from "./actions";
-
-type ProfileOption = { id: string; full_name: string | null; role: string };
+import { ProjectPeopleFields, type OrgOption } from "./project-people-fields";
 
 const initialState: CreateProjectState = {};
 
 export function NewProjectDialog({
-  profiles,
+  people,
+  organizations,
   canAssignPeople,
+  isAdmin,
 }: {
-  profiles: ProfileOption[];
+  people: AssignablePerson[];
+  organizations: OrgOption[];
   canAssignPeople: boolean;
+  isAdmin: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -36,19 +39,6 @@ export function NewProjectDialog({
   const [managerIds, setManagerIds] = useState<string[]>([]);
   const [state, formAction, pending] = useActionState(createProject, initialState);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const managerOptions: MultiSelectOption[] = profiles
-    .filter((p) => p.role === "admin" || p.role === "manager")
-    .map((p) => ({
-      value: p.id,
-      label: p.full_name || "Unnamed user",
-      hint: p.role,
-    }));
-  const memberOptions: MultiSelectOption[] = profiles.map((p) => ({
-    value: p.id,
-    label: p.full_name || "Unnamed user",
-    hint: p.role,
-  }));
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -97,33 +87,23 @@ export function NewProjectDialog({
           </div>
 
           {canAssignPeople && (
-            <>
-              <div className="flex flex-col gap-1.5">
-                <Label>Project managers</Label>
-                <MultiSelect
-                  options={managerOptions}
-                  selected={managerIds}
-                  onChange={setManagerIds}
-                  placeholder="Select one or more managers"
-                />
-                {managerIds.map((id) => (
-                  <input key={id} type="hidden" name="managerIds" value={id} />
-                ))}
-              </div>
+            <ProjectPeopleFields
+              organizations={organizations}
+              people={people}
+              canChooseOrganization
+              managerIds={managerIds}
+              memberIds={memberIds}
+              onManagerIdsChange={setManagerIds}
+              onMemberIdsChange={setMemberIds}
+            />
+          )}
 
-              <div className="flex flex-col gap-1.5">
-                <Label>Assigned members</Label>
-                <MultiSelect
-                  options={memberOptions}
-                  selected={memberIds}
-                  onChange={setMemberIds}
-                  placeholder="Select team members"
-                />
-                {memberIds.map((id) => (
-                  <input key={id} type="hidden" name="memberIds" value={id} />
-                ))}
-              </div>
-            </>
+          {canAssignPeople && (
+            <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              A new project is visible to <strong>you alone</strong> until you assign someone. Add
+              members to let people work on it, or fellow managers to share control of it.
+              {isAdmin && " As Admin you see every project regardless."}
+            </p>
           )}
 
           <div className="grid grid-cols-2 gap-4">

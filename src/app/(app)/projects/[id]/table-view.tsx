@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { CategoryDonut } from "@/components/category-donut";
 import { PrioritySelect, StatusSelect } from "@/components/task-chips";
+import type { ImportBatch } from "@/lib/imports";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import {
   requestBulkTaskDeletion,
@@ -36,7 +37,7 @@ import {
 import { ALL_COLUMNS, TableToolbar, type ColumnKey, type TaskFilters } from "./table-toolbar";
 
 const UNCATEGORIZED = { id: "__none__", name: "Uncategorized" };
-const DEFAULT_FILTERS: TaskFilters = { priorities: [], statusIds: [] };
+const DEFAULT_FILTERS: TaskFilters = { priorities: [], statusIds: [], importBatchId: null };
 
 const CATEGORY_ACCENTS = ["#6366f1", "#ec4899", "#0ea5e9", "#f59e0b", "#22c55e", "#a855f7"];
 
@@ -184,6 +185,8 @@ export function TableView({
   onTasksChange,
   onTaskUpdate,
   onOpenTask,
+  importBatches,
+  initialImportBatchId,
 }: {
   projectId: string;
   categories: CategoryRecord[];
@@ -191,6 +194,9 @@ export function TableView({
   statuses: Status[];
   canDelete: boolean;
   commentCounts: Record<string, number>;
+  importBatches: ImportBatch[];
+  /** From `?import=<id>` — arriving from the import history pre-filters the table. */
+  initialImportBatchId?: string;
   // Setter-shaped so handlers can update functionally and stay dependency-free
   // (and therefore referentially stable for the memoised rows).
   onCategoriesChange: Dispatch<SetStateAction<CategoryRecord[]>>;
@@ -215,11 +221,19 @@ export function TableView({
 
   useEffect(() => {
     const storedFilters = localStorage.getItem(`table-filters-${projectId}`);
-    if (storedFilters) setFilters(JSON.parse(storedFilters));
+    // Merged over the defaults rather than used as-is: filters saved before
+    // the import filter existed have no importBatchId key at all.
+    if (storedFilters) {
+      setFilters({ ...DEFAULT_FILTERS, ...JSON.parse(storedFilters) });
+    }
     const storedColumns = localStorage.getItem(`table-columns-${projectId}`);
     if (storedColumns) setVisibleColumns(new Set(JSON.parse(storedColumns)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+    // A batch id in the URL always wins — you followed a link to see exactly
+    // that import, so a stale saved filter mustn't override it.
+    if (initialImportBatchId) {
+      setFilters((prev) => ({ ...prev, importBatchId: initialImportBatchId }));
+    }
+  }, [projectId, initialImportBatchId]);
 
   function updateFilters(next: TaskFilters) {
     setFilters(next);
@@ -252,6 +266,7 @@ export function TableView({
           !(t.status_id && filters.statusIds.includes(t.status_id))
         )
           return false;
+        if (filters.importBatchId && t.import_batch_id !== filters.importBatchId) return false;
         if (query) {
           const haystack = [
             t.name,
@@ -420,6 +435,7 @@ export function TableView({
         search={search}
         onSearchChange={setSearch}
         resultCount={filteredTasks.length}
+        importBatches={importBatches}
       />
 
       <div className="flex min-w-0 flex-col gap-5">

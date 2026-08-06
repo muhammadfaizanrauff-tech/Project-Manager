@@ -71,6 +71,8 @@ export function ImportDialog({
     null,
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Kept so the import history can say which file this run came from.
+  const [fileName, setFileName] = useState("Pasted rows");
 
   const resolvedFixedCategory =
     fixedCategory === NEW_CATEGORY ? newCategoryName.trim() : fixedCategory;
@@ -88,10 +90,12 @@ export function ImportDialog({
     setBundle(null);
     setJsonResult(null);
     setUploadError(null);
+    setFileName("Pasted rows");
   }
 
   async function handleFile(file: File) {
     setUploadError(null);
+    setFileName(file.name);
 
     // A JSON export carries its own structure, so it skips the column-mapping
     // step entirely and goes straight to a confirmation.
@@ -153,7 +157,7 @@ export function ImportDialog({
 
   async function handleConfirm() {
     setImporting(true);
-    const result = await bulkImportTasks(projectId, mappedRows());
+    const result = await bulkImportTasks(projectId, mappedRows(), fileName);
     setImporting(false);
     setResult(result);
     setStep("result");

@@ -24,11 +24,13 @@ ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=yourpassword ADMIN_NAME="Your Name" \
 ```
 
 Database changes are plain SQL files run by hand in the Supabase SQL editor — there is no
-migration tool. `schema.sql`, then `schema-v2.sql`, then `schema-v3.sql`, in that order; all
-three are idempotent (`create table if not exists`, `drop policy if exists` ... `create policy`)
-so re-running any of them is safe. **When you add/change tables, RLS policies, or triggers, add a
-new `schema-vN.sql` file rather than editing an already-applied one** — existing Supabase projects
-only pick up new files.
+migration tool. `schema.sql`, then `schema-v2.sql`, then `schema-v3.sql` … up to the highest
+`schema-vN.sql`, in that order; all are idempotent (`create table if not exists`,
+`drop policy if exists` ... `create policy`) so re-running any of them is safe.
+`schema-catch-up.sql` is v3-onwards concatenated, for bringing an old deployment forward in one
+paste. **When you add/change tables, RLS policies, or triggers, add a new `schema-vN.sql` file
+rather than editing an already-applied one** — existing Supabase projects only pick up new files
+— and append the same content to `schema-catch-up.sql`.
 
 ## Architecture
 
@@ -43,6 +45,32 @@ Next.js 16 renamed `middleware.ts` → `src/proxy.ts`, exporting a `proxy()` fun
 `middleware()` (see `src/proxy.ts` / `src/lib/supabase/middleware.ts`). Before touching routing,
 middleware/proxy, caching, or data-fetching APIs, check `node_modules/next/dist/docs/` — don't
 assume pre-16 conventions apply.
+
+### Tenancy: Organizations → Projects → Categories → Tasks
+
+`schema-v10.sql` put **organizations** at the top of the hierarchy and deleted every
+"default" visibility rule that came before it. Two orthogonal rules now decide access, and
+conflating them is the easiest mistake to make here:
+
+- **`organization_members` decides who you can *see*.** It scopes the people pickers, the
+  Settings → Users list, and who a Manager may impersonate. It grants **no** project access
+  whatsoever.
+- **`project_managers` / `project_members` / `projects.created_by` decide what you can *open*.**
+  `can_access_project()` is exactly those three plus `is_admin()` — nothing role-wide, nothing
+  organization-wide. A freshly created project is visible to its creator alone.
+
+Consequences worth remembering before "fixing" something that looks broken:
+
+- A Manager seeing no projects is correct if they aren't assigned to any. Earlier schema
+  versions (v4/v5/v8/v9) gave managers a blanket view of non-admin projects; v10 removed it
+  deliberately. `can_view_project()` still exists because many policies call it, but it is now
+  just an alias for `can_access_project()`.
+- `profiles` is no longer world-readable to authenticated users. The policy is self, admins,
+  `shares_org()`, `shares_project()` — so a nested select like `assignee:assignee_id(full_name)`
+  can legitimately return null for someone outside your organization.
+- Server-side code that needs to reason about *another* user's visibility (staffing pickers,
+  impersonation checks, `listManagedUsers`) goes through `src/lib/organizations.ts`, which uses
+  the service client on purpose — relying on the caller's own RLS view there would be circular.
 
 ### Auth & authorization model
 
@@ -82,8 +110,13 @@ Postgres via RLS, not in application code:
   - `projects/[id]/` — the project workspace (`project-workspace.tsx` composes table view,
     Kanban view, and per-project dashboard as tabs), plus task sheet (detail drawer with
     checklist/links/time-tracking sub-panels), CSV import/export, comments, delete-requests.
-  - `settings/` — tabbed: profile, users (admin), statuses (workflow columns), meeting links,
-    delete-requests review (admin approves/rejects member-submitted deletions).
+  - `settings/` — tabbed: profile, organizations (admin), users, my activity (audit),
+    import history, statuses (admin), meeting links, delete-requests and password-requests
+    review (admin).
+  - `notifications/` — everyone's personal notification list; the Admin additionally gets a
+    per-project Kanban board of `project_events`.
+  - `handbook/` — the in-app manual. Its section ids are the anchor targets for every
+    `<HelpTip topic="…">` in the app, so keep them stable.
 - `src/app/login/`, `src/app/change-password/`, `src/app/auth/callback/` — outside the app shell,
   public paths per `proxy.ts`.
 - Everything under `src/app` that mutates data is a `"use server"` Server Action file
@@ -108,6 +141,26 @@ from inside `updateTask` in `task-actions.ts` (`handleTaskNotifications`, `handl
 fired with `void` (fire-and-forget) so they don't block the revalidate/response. New task-mutation
 side effects should follow that same pattern rather than blocking the calling action.
 
+### Notifications, audit, and imports
+
+Three write-side systems added in v10, all fire-and-forget from the calling action (`void`),
+all writing via the service client so they can't be forged or suppressed from the browser:
+
+- **`src/lib/notifications.ts`** — `publishEvent()` writes one `project_events` row (what
+  happened, scoped to a project — this is what the Admin's board reads) plus one
+  `notifications` row per recipient (what each person sees in their tab). Splitting them avoids
+  the duplicate rows you'd get fanning one comment out to four people. Recipients come from
+  `projectAudience()` (everyone on the project) or `projectLeads()` (managers/creator), and the
+  actor is always removed. Links are built with `taskLink()` so a notification deep-links to
+  `/projects/[id]?task=<taskId>`, which `project-workspace.tsx` opens as a drawer.
+- **`src/lib/audit.ts`** — `recordAudit()` into `audit_log`. Readable by the actor and the Admin
+  only; a project's managers deliberately cannot read their team's. It is `server-only`; the
+  types, labels and `auditCategory()` live in **`src/lib/audit-labels.ts`** so Client Components
+  can import them without pulling the service key's module graph into the browser bundle.
+- **`src/lib/imports.ts`** — every import writes an `import_batches` row *before* the tasks, and
+  each task carries `import_batch_id`, which is what powers Filter → Imported batch and
+  `?import=<batchId>`.
+
 ### Conventions worth matching
 
 - Status/label matching is done by comparing the human-readable label string (e.g.
@@ -115,3 +168,7 @@ side effects should follow that same pattern rather than blocking the calling ac
   per-workspace configurable table (`settings/statuses-tab.tsx`), not hardcoded.
 - `revalidatePath` is called explicitly after every mutation; there's no automatic cache
   invalidation, so a new mutation that skips it will show stale data until a hard refresh.
+- New user-facing surfaces get a `<HelpTip topic="…">` from `src/components/help-tip.tsx`,
+  pointing at a section id in the handbook. If the topic doesn't exist there yet, add it.
+- A new mutation should usually do three things beyond the write: `revalidatePath`,
+  `void recordAudit(...)`, and — if a human needs to know — `void publishEvent(...)`.

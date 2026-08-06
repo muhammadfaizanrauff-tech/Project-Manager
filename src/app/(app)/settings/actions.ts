@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { recordAudit } from "@/lib/audit";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { decryptPassword, encryptPassword } from "@/lib/crypto";
+import { orgIdsForUser } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -35,6 +37,8 @@ export async function createManagedUser(input: {
   password: string;
   fullName: string;
   role: "admin" | "manager" | "member";
+  /** Which organizations to place them in. Ignored for Managers — see below. */
+  organizationIds?: string[];
 }) {
   const actor = await requireRole("admin", "manager");
   const role = actor.role === "manager" ? "member" : input.role;
@@ -50,12 +54,36 @@ export async function createManagedUser(input: {
 
   await service
     .from("profiles")
-    .upsert({ id: data.user.id, full_name: input.fullName, role });
+    .upsert({ id: data.user.id, full_name: input.fullName, role, created_by: actor.id });
 
   await service.from("credentials").upsert({
     user_id: data.user.id,
     encrypted_password: encryptPassword(input.password),
     updated_at: new Date().toISOString(),
+  });
+
+  // A new user has to land in an organization or nobody — not even the person
+  // who just created them — will be able to staff them onto a project. A
+  // Manager's new users always join that Manager's own organizations; the
+  // Admin picks explicitly.
+  const orgIds =
+    actor.role === "manager"
+      ? await orgIdsForUser(actor.id)
+      : Array.from(new Set(input.organizationIds ?? []));
+
+  if (orgIds.length > 0) {
+    await service
+      .from("organization_members")
+      .insert(orgIds.map((orgId) => ({ org_id: orgId, user_id: data.user.id })));
+  }
+
+  void recordAudit({
+    actorId: actor.id,
+    action: "user.create",
+    entityType: "user",
+    entityId: data.user.id,
+    entityName: input.fullName,
+    meta: { role, organizations: orgIds.length },
   });
 
   revalidatePath("/settings");
@@ -75,7 +103,7 @@ export async function revealUserPassword(userId: string) {
 }
 
 export async function changeUserPassword(userId: string, newPassword: string) {
-  await requireRole("admin");
+  const admin = await requireRole("admin");
   const service = createServiceClient();
 
   const { error } = await service.auth.admin.updateUserById(userId, {
@@ -89,6 +117,13 @@ export async function changeUserPassword(userId: string, newPassword: string) {
     updated_at: new Date().toISOString(),
   });
 
+  void recordAudit({
+    actorId: admin.id,
+    action: "password.change",
+    entityType: "user",
+    entityId: userId,
+  });
+
   revalidatePath("/settings");
   return { ok: true };
 }
@@ -100,8 +135,35 @@ export async function deleteManagedUser(userId: string, targetRole: "admin" | "m
   }
 
   const service = createServiceClient();
+
+  // A Manager may only reach people inside their own organizations — without
+  // this check the user id alone would be enough to delete anyone's member.
+  if (actor.role === "manager") {
+    const [actorOrgs, { data: targetOrgs }] = await Promise.all([
+      orgIdsForUser(actor.id),
+      service.from("organization_members").select("org_id").eq("user_id", userId),
+    ]);
+    const shared = (targetOrgs ?? []).some((r) => actorOrgs.includes(r.org_id));
+    if (!shared) return { error: "That user isn't in one of your organizations." };
+  }
+
+  const { data: target } = await service
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
   const { error } = await service.auth.admin.deleteUser(userId);
   if (error) return { error: error.message };
+
+  void recordAudit({
+    actorId: actor.id,
+    action: "user.delete",
+    entityType: "user",
+    entityId: userId,
+    entityName: target?.full_name ?? null,
+    meta: { role: targetRole },
+  });
 
   revalidatePath("/settings");
   return { ok: true };
@@ -164,12 +226,22 @@ export async function approveDeleteRequest(requestId: string) {
     .eq("id", requestId);
   if (error) return { error: error.message };
 
+  const admin = await getCurrentProfile();
+  void recordAudit({
+    actorId: admin?.id,
+    action: "delete_request.resolve",
+    entityType: request.kind === "project" ? "project" : "task",
+    entityId: requestId,
+    projectId: request.project_id,
+    meta: { outcome: "approved", kind: request.kind },
+  });
+
   revalidatePath("/settings");
   return { ok: true };
 }
 
 export async function rejectDeleteRequest(requestId: string) {
-  await requireRole("admin");
+  const admin = await requireRole("admin");
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -177,6 +249,14 @@ export async function rejectDeleteRequest(requestId: string) {
     .update({ status: "rejected", resolved_at: new Date().toISOString() })
     .eq("id", requestId);
   if (error) return { error: error.message };
+
+  void recordAudit({
+    actorId: admin.id,
+    action: "delete_request.resolve",
+    entityType: "task",
+    entityId: requestId,
+    meta: { outcome: "rejected" },
+  });
 
   revalidatePath("/settings");
   return { ok: true };

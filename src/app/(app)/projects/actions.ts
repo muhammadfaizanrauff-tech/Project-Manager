@@ -4,10 +4,13 @@ import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+import { recordAudit } from "@/lib/audit";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { notifyProjectAssigned } from "@/lib/email";
+import { publishEvent } from "@/lib/notifications";
+import { orgIdsForUser } from "@/lib/organizations";
 
 export type CreateProjectState = {
   error?: string;
@@ -44,6 +47,24 @@ export async function createProject(
     return { error: "Project name is required." };
   }
 
+  // A project belongs to exactly one organization. The Admin may file it
+  // anywhere; everyone else only into an organization they're actually in —
+  // checked here as well as by RLS so the failure is a sentence rather than a
+  // Postgres error code.
+  const organizationId = String(formData.get("organizationId") ?? "") || null;
+  if (profile.role !== "admin") {
+    const myOrgs = await orgIdsForUser(user.id);
+    if (myOrgs.length === 0) {
+      return {
+        error:
+          "You're not in an organization yet, so there's nowhere to file this project. Ask the Admin to add you to one.",
+      };
+    }
+    if (!organizationId || !myOrgs.includes(organizationId)) {
+      return { error: "Pick one of your organizations for this project." };
+    }
+  }
+
   let logoUrl: string | null = null;
   if (logo instanceof File && logo.size > 0) {
     const service = createServiceClient();
@@ -73,6 +94,7 @@ export async function createProject(
       // deployment still reading it doesn't break. project_managers below is
       // the source of truth.
       manager_id: managerIds[0] ?? null,
+      organization_id: organizationId,
       created_by: user.id,
       start_date: startDate,
       end_date: endDate,
@@ -118,6 +140,31 @@ export async function createProject(
         .map((userId) => notifyProjectAssigned({ userId, projectName: name })),
     );
   }
+
+  // Until someone is assigned, a new project is visible only to whoever made
+  // it — this is the notification that makes it appear for everyone else.
+  const assigned = Array.from(new Set([...memberIds, ...managerIds]));
+  if (assigned.length > 0) {
+    void publishEvent({
+      projectId: project.id,
+      actorId: user.id,
+      type: "project_member",
+      title: `${profile.full_name ?? "Someone"} added you to ${name}`,
+      body: `You now have access to the project "${name}".`,
+      recipientIds: assigned,
+    });
+  }
+
+  void recordAudit({
+    actorId: user.id,
+    action: "project.create",
+    entityType: "project",
+    entityId: project.id,
+    entityName: name,
+    projectId: project.id,
+    projectName: name,
+    meta: { managers: managerIds.length, members: memberIds.length },
+  });
 
   revalidatePath("/projects");
   redirect(`/projects/${project.id}`);
@@ -170,6 +217,10 @@ export async function updateProject(
     ? Array.from(new Set(formData.getAll("managerIds").map(String).filter(Boolean)))
     : [];
 
+  // Only the Admin may move a project between organizations — for anyone else
+  // that would be a way to hand a project to a company they don't belong to.
+  const organizationId = String(formData.get("organizationId") ?? "") || null;
+
   const { error } = await supabase
     .from("projects")
     .update({
@@ -180,6 +231,9 @@ export async function updateProject(
       // Legacy column tracks the first manager; project_managers below is the
       // source of truth.
       ...(canAssignPeople ? { manager_id: managerIds[0] ?? null } : {}),
+      ...(profile.role === "admin" && organizationId
+        ? { organization_id: organizationId }
+        : {}),
     })
     .eq("id", projectId);
 
@@ -194,6 +248,15 @@ export async function updateProject(
     const memberIds = Array.from(
       new Set(formData.getAll("memberIds").map(String).filter(Boolean)),
     );
+
+    // Who's new matters: a project is invisible until you're put on it, so
+    // being added is exactly when someone needs telling.
+    const { data: previousMembers } = await supabase
+      .from("project_members")
+      .select("user_id")
+      .eq("project_id", projectId);
+    const previousMemberIds = new Set((previousMembers ?? []).map((r) => r.user_id));
+
     // Replace both rosters wholesale — the form always submits the full lists.
     await supabase.from("project_members").delete().eq("project_id", projectId);
     if (memberIds.length > 0) {
@@ -228,7 +291,37 @@ export async function updateProject(
         .eq("project_id", projectId)
         .in("user_id", toRemove);
     }
+
+    const newlyAssigned = Array.from(
+      new Set([
+        ...memberIds.filter((id) => !previousMemberIds.has(id)),
+        ...toAdd,
+      ]),
+    );
+    if (newlyAssigned.length > 0) {
+      await Promise.all(
+        newlyAssigned.map((userId) => notifyProjectAssigned({ userId, projectName: name })),
+      );
+      void publishEvent({
+        projectId,
+        actorId: user.id,
+        type: "project_member",
+        title: `${profile.full_name ?? "Someone"} added you to ${name}`,
+        body: `You now have access to the project "${name}".`,
+        recipientIds: newlyAssigned,
+      });
+    }
   }
+
+  void recordAudit({
+    actorId: user.id,
+    action: "project.update",
+    entityType: "project",
+    entityId: projectId,
+    entityName: name,
+    projectId,
+    projectName: name,
+  });
 
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
@@ -242,8 +335,23 @@ export async function deleteProject(projectId: string) {
   }
 
   const supabase = await createClient();
+  const { data: existing } = await supabase
+    .from("projects")
+    .select("name")
+    .eq("id", projectId)
+    .maybeSingle();
+
   const { error } = await supabase.from("projects").delete().eq("id", projectId);
   if (error) return { error: error.message };
+
+  void recordAudit({
+    actorId: profile.id,
+    action: "project.delete",
+    entityType: "project",
+    entityId: projectId,
+    entityName: existing?.name ?? null,
+    projectName: existing?.name ?? null,
+  });
 
   revalidatePath("/projects");
   redirect("/projects");
@@ -260,7 +368,7 @@ export async function cloneProject(projectId: string) {
 
   const { data: original } = await supabase
     .from("projects")
-    .select("name, logo_url, manager_id")
+    .select("name, logo_url, manager_id, organization_id")
     .eq("id", projectId)
     .single();
   if (!original) return { error: "Project not found." };
@@ -271,19 +379,27 @@ export async function cloneProject(projectId: string) {
       name: `${original.name} (Copy)`,
       logo_url: original.logo_url,
       manager_id: original.manager_id,
+      organization_id: original.organization_id,
       created_by: user.id,
     })
     .select("id")
     .single();
   if (projectError || !newProject) return { error: "Could not clone the project." };
 
-  const { data: members } = await supabase
-    .from("project_members")
-    .select("user_id")
-    .eq("project_id", projectId);
+  const [{ data: members }, { data: managers }] = await Promise.all([
+    supabase.from("project_members").select("user_id").eq("project_id", projectId),
+    supabase.from("project_managers").select("user_id").eq("project_id", projectId),
+  ]);
   if (members && members.length > 0) {
     await supabase.from("project_members").insert(
       members.map((m) => ({ project_id: newProject.id, user_id: m.user_id })),
+    );
+  }
+  // The clone carries its manager roster over too — otherwise a co-manager
+  // would silently lose sight of the copy.
+  if (managers && managers.length > 0) {
+    await supabase.from("project_managers").insert(
+      managers.map((m) => ({ project_id: newProject.id, user_id: m.user_id })),
     );
   }
 
@@ -321,6 +437,17 @@ export async function cloneProject(projectId: string) {
       );
     }
   }
+
+  void recordAudit({
+    actorId: user.id,
+    action: "project.clone",
+    entityType: "project",
+    entityId: newProject.id,
+    entityName: `${original.name} (Copy)`,
+    projectId: newProject.id,
+    projectName: `${original.name} (Copy)`,
+    meta: { clonedFrom: projectId },
+  });
 
   revalidatePath("/projects");
   redirect(`/projects/${newProject.id}`);

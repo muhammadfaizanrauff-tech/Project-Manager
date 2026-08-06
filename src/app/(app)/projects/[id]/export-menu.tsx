@@ -28,12 +28,17 @@ export function ExportMenu({
   categories,
   tasks,
   statuses,
+  generatedBy,
+  organizationName,
 }: {
   projectId: string;
   projectName: string;
   categories: CategoryRecord[];
   tasks: TaskRecord[];
   statuses: Status[];
+  /** Stamped on the PDF — whoever is signed in and asked for the report. */
+  generatedBy?: string | null;
+  organizationName?: string | null;
 }) {
   const [exportingJson, setExportingJson] = useState(false);
 
@@ -60,7 +65,7 @@ export function ExportMenu({
     const { buildExportRows, exportToExcel, exportToPdf } = await import("@/lib/export-utils");
     const rows = buildExportRows(categories, tasks, statuses);
     if (format === "excel") exportToExcel(projectName, rows);
-    else exportToPdf(projectName, rows);
+    else exportToPdf(projectName, rows, { generatedBy, organizationName });
   }
 
   return (

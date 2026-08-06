@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { recordAudit } from "@/lib/audit";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { decryptJson, decryptPassword, encryptJson } from "@/lib/crypto";
+import { sharesOrganization } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ACTIVE_SESSION_COOKIE, activeSessionCookieOptions } from "@/lib/supabase/session-marker";
@@ -43,15 +45,26 @@ export async function startImpersonation(targetUserId: string) {
 
   const { data: targetProfile } = await service
     .from("profiles")
-    .select("id, role")
+    .select("id, full_name, role")
     .eq("id", targetUserId)
     .maybeSingle();
   if (!targetProfile) return { error: "User not found." };
 
-  // Nobody may switch to the Admin. Managers may switch to members and
-  // other managers; the Admin may switch to managers and members.
+  // Nobody may switch to the Admin — not even another Admin.
   if (targetProfile.role === "admin") {
     return { error: "You can't switch to the Admin account." };
+  }
+
+  // A Manager may only switch into a Member of one of their own
+  // organizations. Never a peer Manager (that would let one company's manager
+  // act as another's), and never anyone outside their organizations.
+  if (actor.role === "manager") {
+    if (targetProfile.role !== "member") {
+      return { error: "Managers can only switch into member accounts." };
+    }
+    if (!(await sharesOrganization(actorUser.id, targetUserId))) {
+      return { error: "That user isn't in one of your organizations." };
+    }
   }
 
   const { data: credRow } = await service
@@ -100,6 +113,14 @@ export async function startImpersonation(targetUserId: string) {
     target_id: targetUserId,
   });
 
+  void recordAudit({
+    actorId: actorUser.id,
+    action: "auth.impersonate_start",
+    entityType: "user",
+    entityId: targetUserId,
+    entityName: targetProfile.full_name,
+  });
+
   revalidatePath("/", "layout");
   redirect("/dashboard");
 }
@@ -127,6 +148,12 @@ export async function stopImpersonation() {
       .update({ ended_at: new Date().toISOString() })
       .is("ended_at", null)
       .eq("actor_id", stashed.actorId);
+
+    void recordAudit({
+      actorId: stashed.actorId,
+      action: "auth.impersonate_end",
+      entityType: "user",
+    });
   }
 
   const supabase = await createClient();
