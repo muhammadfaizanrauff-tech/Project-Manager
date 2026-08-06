@@ -140,7 +140,7 @@ export function ProjectWorkspace({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 max-w-full items-center gap-2">
         <Tabs value={view} onValueChange={(v) => setView(v as typeof view)} className="min-w-0">
-          <TabsList className="no-scrollbar max-w-full flex-nowrap overflow-x-auto [&>*]:shrink-0">
+          <TabsList className="max-w-full flex-wrap group-data-horizontal/tabs:h-auto">
             <TabsTrigger value="table">
               <TableIcon className="size-3.5" />
               Table

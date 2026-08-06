@@ -155,7 +155,11 @@ export function TaskSheet({
 
         <Tabs defaultValue="details" className="flex flex-1 flex-col overflow-hidden">
           <div className="flex items-center gap-1.5 px-4">
-            <TabsList className="no-scrollbar w-full max-w-full flex-nowrap overflow-x-auto [&>*]:shrink-0 sm:w-fit">
+            {/* Wraps rather than scrolls, and overrides the height through the
+                same group-data variant the primitive uses — an unprefixed
+                h-auto loses to it, leaving a second row overlapping the panel
+                below. */}
+            <TabsList className="w-full max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto sm:w-fit">
               <TabsTrigger value="details">Details</TabsTrigger>
               <TabsTrigger value="checklist">
                 Checklist

@@ -194,13 +194,4 @@
   .shadow-glow {
     box-shadow: 0 8px 30px -8px color-mix(in oklch, var(--primary) 45%, transparent);
   }
-  /* For strips that scroll sideways on small screens (tab bars) where the
-     10px scrollbar above would eat more height than the content. */
-  .no-scrollbar {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
 }
