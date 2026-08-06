@@ -144,7 +144,7 @@ export function ProjectWorkspace({
 
         {view !== "dashboard" && (
           <div className="flex items-center gap-2">
-            {canImport && <ImportDialog projectId={projectId} />}
+            {canImport && <ImportDialog projectId={projectId} categories={categories} />}
             <ExportMenu
               projectName={projectName}
               categories={categories}

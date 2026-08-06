@@ -32,22 +32,48 @@ const TARGET_FIELDS: { key: keyof ImportRow; label: string; required?: boolean }
   { key: "category", label: "Category" },
 ];
 
-type Step = "upload" | "map" | "preview" | "result";
+// Category is mapped differently from the rest: instead of only pointing at a
+// CSV column, you can drop every imported task into one category — an existing
+// one, or a new one typed here (bulkImportTasks creates unknown categories by
+// name, so nothing extra is needed to make it exist).
+const COLUMN_FIELDS = TARGET_FIELDS.filter((f) => f.key !== "category");
+const NEW_CATEGORY = "__new__";
 
-export function ImportDialog({ projectId }: { projectId: string }) {
+type Step = "upload" | "map" | "preview" | "result";
+type CategoryMode = "column" | "fixed";
+
+export function ImportDialog({
+  projectId,
+  categories,
+}: {
+  projectId: string;
+  categories: { id: string; name: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>("upload");
   const [headers, setHeaders] = useState<string[]>([]);
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<Partial<Record<keyof ImportRow, string>>>({});
+  const [categoryMode, setCategoryMode] = useState<CategoryMode>("column");
+  const [fixedCategory, setFixedCategory] = useState(
+    categories[0]?.name ?? NEW_CATEGORY,
+  );
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportSummary | { error: string } | null>(null);
+
+  const resolvedFixedCategory =
+    fixedCategory === NEW_CATEGORY ? newCategoryName.trim() : fixedCategory;
+  const categoryReady = categoryMode === "column" || resolvedFixedCategory.length > 0;
 
   function reset() {
     setStep("upload");
     setHeaders([]);
     setRows([]);
     setMapping({});
+    setCategoryMode("column");
+    setFixedCategory(categories[0]?.name ?? NEW_CATEGORY);
+    setNewCategoryName("");
     setResult(null);
   }
 
@@ -84,7 +110,12 @@ export function ImportDialog({ projectId }: { projectId: string }) {
       priority: mapping.priority ? row[mapping.priority] : undefined,
       status: mapping.status ? row[mapping.status] : undefined,
       dueDate: mapping.dueDate ? row[mapping.dueDate] : undefined,
-      category: mapping.category ? row[mapping.category] : undefined,
+      category:
+        categoryMode === "fixed"
+          ? resolvedFixedCategory || undefined
+          : mapping.category
+            ? row[mapping.category]
+            : undefined,
     }));
   }
 
@@ -137,7 +168,7 @@ export function ImportDialog({ projectId }: { projectId: string }) {
               Match each field to a column from your CSV ({rows.length} rows found).
             </p>
             <div className="flex flex-col gap-2.5">
-              {TARGET_FIELDS.map((field) => (
+              {COLUMN_FIELDS.map((field) => (
                 <div key={field.key} className="grid grid-cols-2 items-center gap-3">
                   <Label>
                     {field.label}
@@ -166,12 +197,99 @@ export function ImportDialog({ projectId }: { projectId: string }) {
                   </Select>
                 </div>
               ))}
+
+              <div className="flex flex-col gap-2.5 rounded-lg border p-3">
+                <div className="grid grid-cols-2 items-center gap-3">
+                  <Label>Category</Label>
+                  <Select
+                    value={categoryMode}
+                    onValueChange={(v) => setCategoryMode(v === "fixed" ? "fixed" : "column")}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="column">Read from a column</SelectItem>
+                      <SelectItem value="fixed">Put them all in one</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {categoryMode === "column" ? (
+                  <div className="grid grid-cols-2 items-center gap-3">
+                    <Label className="text-muted-foreground">Column</Label>
+                    <Select
+                      value={mapping.category ?? "__skip__"}
+                      onValueChange={(v) =>
+                        setMapping((prev) => ({
+                          ...prev,
+                          category: !v || v === "__skip__" ? undefined : String(v),
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Don't import" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__skip__">Don&apos;t import</SelectItem>
+                        {headers.map((h) => (
+                          <SelectItem key={h} value={h}>
+                            {h}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 items-center gap-3">
+                    <Label className="text-muted-foreground">Category</Label>
+                    <Select
+                      value={fixedCategory}
+                      onValueChange={(v) => v && setFixedCategory(String(v))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((c) => (
+                          <SelectItem key={c.id} value={c.name}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={NEW_CATEGORY}>+ New category…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {categoryMode === "fixed" && fixedCategory === NEW_CATEGORY && (
+                  <div className="grid grid-cols-2 items-center gap-3">
+                    <Label className="text-muted-foreground">Name it</Label>
+                    <Input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="e.g. Q3 Backlog"
+                    />
+                  </div>
+                )}
+
+                <p className="text-xs text-muted-foreground">
+                  {categoryMode === "column"
+                    ? "Each task goes into the category named in that column. Categories that don't exist yet get created."
+                    : resolvedFixedCategory
+                      ? `All ${rows.length} tasks go into "${resolvedFixedCategory}".`
+                      : "Name the new category to continue."}
+                </p>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setStep("upload")}>
                 Back
               </Button>
-              <Button disabled={!mapping.name} onClick={() => setStep("preview")}>
+              <Button
+                disabled={!mapping.name || !categoryReady}
+                onClick={() => setStep("preview")}
+              >
                 Preview
               </Button>
             </DialogFooter>
