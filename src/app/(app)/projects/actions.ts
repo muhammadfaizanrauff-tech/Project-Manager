@@ -10,7 +10,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { notifyProjectAssigned } from "@/lib/email";
 import { publishEvent } from "@/lib/notifications";
-import { orgIdsForUser } from "@/lib/organizations";
+import { defaultOrganizationForUser, orgIdsForUser } from "@/lib/organizations";
 
 export type CreateProjectState = {
   error?: string;
@@ -47,22 +47,37 @@ export async function createProject(
     return { error: "Project name is required." };
   }
 
-  // A project belongs to exactly one organization. The Admin may file it
-  // anywhere; everyone else only into an organization they're actually in —
-  // checked here as well as by RLS so the failure is a sentence rather than a
-  // Postgres error code.
-  const organizationId = String(formData.get("organizationId") ?? "") || null;
-  if (profile.role !== "admin") {
+  // A project belongs to exactly one organization, but only Admins and
+  // Managers are ever shown the picker — so for a member the form carries no
+  // organization at all, and demanding one here used to reject every project
+  // they tried to create with an instruction they had no way to follow.
+  //
+  // Whoever didn't choose gets filed automatically instead: their own
+  // organization (see defaultOrganizationForUser). Someone who *did* choose is
+  // still held to choosing one of theirs — that check is what stops a project
+  // being handed to a company they don't belong to, and RLS enforces it again
+  // underneath.
+  const submittedOrganizationId = String(formData.get("organizationId") ?? "") || null;
+  let organizationId = submittedOrganizationId;
+
+  if (profile.role !== "admin" && submittedOrganizationId) {
     const myOrgs = await orgIdsForUser(user.id);
-    if (myOrgs.length === 0) {
-      return {
-        error:
-          "You're not in an organization yet, so there's nowhere to file this project. Ask the Admin to add you to one.",
-      };
-    }
-    if (!organizationId || !myOrgs.includes(organizationId)) {
+    if (!myOrgs.includes(submittedOrganizationId)) {
       return { error: "Pick one of your organizations for this project." };
     }
+  }
+
+  // Set only in the fallback case where the creator belongs to no organization
+  // at all: projects_insert (schema-v10) refuses a column naming an
+  // organization you aren't in, so the row goes in without it and the id is
+  // stamped on afterwards. It's filing metadata — it grants nobody access to
+  // anything, since who can open a project is decided by assignment alone.
+  let fileAfterInsert = false;
+
+  if (!organizationId) {
+    const fallback = await defaultOrganizationForUser(user.id);
+    organizationId = fallback?.id ?? null;
+    fileAfterInsert = Boolean(fallback && !fallback.isMember && profile.role !== "admin");
   }
 
   let logoUrl: string | null = null;
@@ -94,7 +109,7 @@ export async function createProject(
       // deployment still reading it doesn't break. project_managers below is
       // the source of truth.
       manager_id: managerIds[0] ?? null,
-      organization_id: organizationId,
+      organization_id: fileAfterInsert ? null : organizationId,
       created_by: user.id,
       start_date: startDate,
       end_date: endDate,
@@ -114,6 +129,14 @@ export async function createProject(
       };
     }
     return { error: error?.message ?? "Could not create the project." };
+  }
+
+  // The organization the creator isn't a member of — see fileAfterInsert above.
+  if (fileAfterInsert && organizationId) {
+    await createServiceClient()
+      .from("projects")
+      .update({ organization_id: organizationId })
+      .eq("id", project.id);
   }
 
   const memberRows = Array.from(new Set(memberIds)).map((userId) => ({

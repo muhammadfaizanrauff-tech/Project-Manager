@@ -4,7 +4,7 @@ import { FadeIn } from "@/components/motion/fade-in";
 import { HelpTip } from "@/components/help-tip";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { listFavoriteProjectIds } from "@/lib/favorites";
-import { listOrganizations } from "@/lib/organizations";
+import { defaultOrganizationForUser, listOrganizations } from "@/lib/organizations";
 import { listAssignablePeopleWithOrgs, listProjects } from "@/lib/projects";
 import { NewProjectDialog } from "./new-project-dialog";
 import { ProjectsGrid } from "./projects-grid";
@@ -16,12 +16,18 @@ export default async function ProjectsPage() {
   const canAssignPeople = profile?.role === "admin" || profile?.role === "manager";
   const isAdmin = profile?.role === "admin";
 
-  const [projects, people, organizations, favoriteIds] = await Promise.all([
-    listProjects(),
-    canAssignPeople ? listAssignablePeopleWithOrgs() : Promise.resolve([]),
-    canAssignPeople ? listOrganizations() : Promise.resolve([]),
-    user ? listFavoriteProjectIds(user.id) : Promise.resolve([]),
-  ]);
+  const [projects, people, organizations, favoriteIds, defaultOrganization] =
+    await Promise.all([
+      listProjects(),
+      canAssignPeople ? listAssignablePeopleWithOrgs() : Promise.resolve([]),
+      canAssignPeople ? listOrganizations() : Promise.resolve([]),
+      user ? listFavoriteProjectIds(user.id) : Promise.resolve([]),
+      // Members get no organization picker — their project is filed for them,
+      // so the dialog names the organization it's going into instead.
+      !canAssignPeople && user
+        ? defaultOrganizationForUser(user.id)
+        : Promise.resolve(null),
+    ]);
 
   return (
     <div className="flex flex-1 flex-col gap-6">
@@ -45,6 +51,7 @@ export default async function ProjectsPage() {
           organizations={organizations}
           canAssignPeople={canAssignPeople}
           isAdmin={isAdmin}
+          defaultOrganizationName={defaultOrganization?.name ?? null}
         />
       </FadeIn>
 

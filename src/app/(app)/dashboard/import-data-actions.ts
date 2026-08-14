@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
+import { defaultOrganizationForUser } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 
 export async function listProjectsForImport() {
@@ -27,10 +28,16 @@ export async function createProjectQuick(name: string) {
     return { error: "Only Admins and Managers can create projects." };
   }
 
+  // Filed under the creator's organization like every other way of making a
+  // project — a project created here used to land with no organization at all,
+  // which left it out of the Organizations view for good.
+  const fallback = await defaultOrganizationForUser(user.id);
+  const organizationId = fallback?.isMember ? fallback.id : null;
+
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("projects")
-    .insert({ name, created_by: user.id })
+    .insert({ name, created_by: user.id, organization_id: organizationId })
     .select("id, name")
     .single();
   if (error) return { error: error.message };

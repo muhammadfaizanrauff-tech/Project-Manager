@@ -27,11 +27,14 @@ export function NewProjectDialog({
   organizations,
   canAssignPeople,
   isAdmin,
+  defaultOrganizationName,
 }: {
   people: AssignablePerson[];
   organizations: OrgOption[];
   canAssignPeople: boolean;
   isAdmin: boolean;
+  /** Only set for members, who file their project without a picker. */
+  defaultOrganizationName?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -98,11 +101,21 @@ export function NewProjectDialog({
             />
           )}
 
-          {canAssignPeople && (
+          {canAssignPeople ? (
             <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
               A new project is visible to <strong>you alone</strong> until you assign someone. Add
               members to let people work on it, or fellow managers to share control of it.
               {isAdmin && " As Admin you see every project regardless."}
+            </p>
+          ) : (
+            <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              {defaultOrganizationName ? (
+                <>
+                  This project is filed under <strong>{defaultOrganizationName}</strong>{" "}
+                  automatically.{" "}
+                </>
+              ) : null}
+              It&apos;s visible to <strong>you alone</strong> until a manager adds someone to it.
             </p>
           )}
 

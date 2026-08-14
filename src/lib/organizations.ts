@@ -160,6 +160,67 @@ export async function visiblePeopleForUser(
   return [...admins, ...withoutAdmins];
 }
 
+export type DefaultOrganization = {
+  id: string;
+  name: string;
+  /** False only in the last-resort case below, where the workspace's own
+   *  organization is used for someone who isn't in any. */
+  isMember: boolean;
+};
+
+/**
+ * Where a project goes when nobody picked an organization for it.
+ *
+ * Members never see the organization picker, so their projects have to be
+ * filed for them rather than refused. The answer is the oldest organization
+ * they belong to — for almost everyone that's the "Main Organization"
+ * schema-v10 created and put every existing user into, which is what makes
+ * this behave like "it just goes in the main one".
+ *
+ * An account created without any organization (the Admin can do that from
+ * Settings → Users) still shouldn't hit a dead end, so it falls back to the
+ * workspace's oldest organization with `isMember: false` — the caller needs to
+ * know, because RLS won't let that person write the column themselves.
+ *
+ * Service client because it answers "which organization is this user in",
+ * which the caller's own RLS view can't be trusted to settle.
+ */
+export async function defaultOrganizationForUser(
+  userId: string,
+): Promise<DefaultOrganization | null> {
+  const service = createServiceClient();
+
+  const { data: mine } = await service
+    .from("organization_members")
+    .select("organizations:org_id(id, name, created_at)")
+    .eq("user_id", userId);
+
+  const owned = (mine ?? [])
+    .map(
+      (row) =>
+        row.organizations as unknown as {
+          id: string;
+          name: string;
+          created_at: string;
+        } | null,
+    )
+    .filter((org): org is { id: string; name: string; created_at: string } => Boolean(org))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  if (owned.length > 0) {
+    return { id: owned[0].id, name: owned[0].name, isMember: true };
+  }
+
+  const { data: oldest } = await service
+    .from("organizations")
+    .select("id, name")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  return oldest ? { id: oldest.id, name: oldest.name, isMember: false } : null;
+}
+
 /** True when both users share at least one organization. */
 export async function sharesOrganization(a: string, b: string): Promise<boolean> {
   const [orgsA, orgsB] = await Promise.all([orgIdsForUser(a), orgIdsForUser(b)]);
