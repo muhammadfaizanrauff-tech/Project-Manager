@@ -40,6 +40,7 @@ export function ProjectWorkspace({
   initialLabels,
   canDelete,
   canImport,
+  canSeeAllTasks,
   importBatches,
   initialTaskId,
   initialImportBatchId,
@@ -56,6 +57,9 @@ export function ProjectWorkspace({
   initialLabels: { id: string; project_id: string; name: string; color: string }[];
   canDelete: boolean;
   canImport: boolean;
+  /** False for someone who only sees their own tasks (schema-v12) — the empty
+   *  categories left over from that are hidden rather than shown as noise. */
+  canSeeAllTasks: boolean;
   importBatches: ImportBatch[];
   initialTaskId?: string;
   initialImportBatchId?: string;
@@ -218,6 +222,7 @@ export function ProjectWorkspace({
           statuses={statuses}
           members={members}
           canDelete={canDelete}
+          canSeeAllTasks={canSeeAllTasks}
           commentCounts={commentCounts}
           onCategoriesChange={setCategories}
           onTasksChange={setTasks}

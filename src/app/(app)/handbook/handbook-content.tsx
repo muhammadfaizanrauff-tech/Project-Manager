@@ -155,7 +155,7 @@ function PermissionMatrix() {
         manager: <Yes />,
         member: <Some label="By request" />,
       },
-      { what: "Import tasks from CSV / Excel", admin: <Yes />, manager: <Yes />, member: <No /> },
+      { what: "Import tasks from CSV / Excel", admin: <Yes />, manager: <Yes />, member: <Yes /> },
       { what: "Export reports (PDF / Excel / JSON)", admin: <Yes />, manager: <Yes />, member: <Yes /> },
       { what: "Edit workflow statuses", admin: <Yes />, manager: <No />, member: <No /> },
       { what: "Approve delete & password requests", admin: <Yes />, manager: <No />, member: <No /> },
@@ -372,6 +372,16 @@ const SECTIONS: Section[] = [
           its assigned members; and whoever created it. Nobody else — no matter their role.
         </Callout>
 
+        <Callout tone="good" title="And inside a project, task by task">
+          Opening a project is not the same as seeing everything in it. A <strong>task</strong>
+          {" "}is visible to the Admin, the project&apos;s managers, whoever created the project,
+          the person it&apos;s <strong>assigned to</strong>, and the person who{" "}
+          <strong>created</strong> it. A member added to a project therefore sees the categories
+          and their own tasks — not their colleagues&apos; work. Since a task with no assignee is
+          seen only by its creator and the project&apos;s managers, assigning work is what puts it
+          in front of someone.
+        </Callout>
+
         <H>What that means in practice</H>
         <Bullets
           items={[
@@ -381,7 +391,8 @@ const SECTIONS: Section[] = [
             </>,
             <>
               Add a <strong>member</strong> and they can open it and work on it, but they
-              can&apos;t delete anything in it.
+              can&apos;t delete anything in it — and they see only <em>their own</em> tasks
+              inside it (see below).
             </>,
             <>
               Add a <strong>fellow manager</strong> and they get the project on their side too,

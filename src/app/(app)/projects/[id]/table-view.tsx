@@ -329,6 +329,7 @@ export function TableView({
   statuses,
   members,
   canDelete,
+  canSeeAllTasks,
   commentCounts,
   onCategoriesChange,
   onTasksChange,
@@ -344,6 +345,9 @@ export function TableView({
   /** Who a new task can be assigned to from the Add task dialog. */
   members: { id: string; full_name: string | null; role: string }[];
   canDelete: boolean;
+  /** False when the viewer only gets their own tasks (schema-v12), which is
+   *  worth saying out loud — otherwise a project looks like it lost its work. */
+  canSeeAllTasks: boolean;
   commentCounts: Record<string, number>;
   importBatches: ImportBatch[];
   /** From `?import=<id>` — arriving from the import history pre-filters the table. */
@@ -663,6 +667,17 @@ export function TableView({
         resultCount={filteredTasks.length}
         importBatches={importBatches}
       />
+
+      {/* Categories are still all listed even when most come back empty —
+          they're the project's structure, and a member needs the heading there
+          to add a task under it. What needs saying is why they're empty. */}
+      {!canSeeAllTasks && (
+        <p className="rounded-xl border border-dashed px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          You&apos;re seeing the tasks <strong>assigned to you</strong> or that{" "}
+          <strong>you created</strong>. Other people&apos;s work in this project stays with
+          them — ask a project manager if you need something you can&apos;t find.
+        </p>
+      )}
 
       <div className="flex min-w-0 flex-col gap-5">
         {groups.map(({ category, tasks: groupTasks }, index) => {

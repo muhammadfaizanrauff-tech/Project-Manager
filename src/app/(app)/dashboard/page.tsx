@@ -19,7 +19,11 @@ const ROLE_BLURB: Record<string, string> = {
 export default async function DashboardPage() {
   const profile = await getCurrentProfile();
   const role = profile?.role ?? "member";
-  const canImport = role === "admin" || role === "manager";
+  // Everyone signed in. Import writes through RLS like anything else, so the
+  // project picker inside the dialog only lists projects you can already work
+  // in — the role check here was hiding a button that was never the thing
+  // keeping anyone out.
+  const canImport = Boolean(profile);
 
   // One dashboard for everyone. RLS decides what the numbers cover: the whole
   // workspace for the Admin, assigned projects for everyone else — so a

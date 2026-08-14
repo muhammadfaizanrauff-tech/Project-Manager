@@ -28,9 +28,14 @@ export async function bulkImportTasks(
   rows: ImportRow[],
   fileName = "Pasted rows",
 ): Promise<ImportSummary | { error: string }> {
+  // Open to anyone who can work in the project — importing is adding tasks in
+  // bulk, and members have always been able to add them one at a time. RLS is
+  // the real gate: tasks_insert, categories_insert and import_batches_insert
+  // all grant on can_access_project, so someone without access to the project
+  // gets nothing written regardless of what they post here.
   const profile = await getCurrentProfile();
-  if (!profile || (profile.role !== "admin" && profile.role !== "manager")) {
-    return { error: "Only Admins and Managers can import tasks." };
+  if (!profile) {
+    return { error: "You need to be signed in to import tasks." };
   }
 
   const supabase = await createClient();

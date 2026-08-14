@@ -61,6 +61,13 @@ export default async function ProjectDetailPage({
   const isAdmin = profile?.role === "admin";
   // Mirrors can_edit_project in schema-v6.sql: staff, or whoever created it.
   const canEdit = isStaff || project.created_by === profile?.id;
+  // Mirrors can_see_all_tasks in schema-v12.sql exactly, so the UI hides the
+  // same things the database does. Anyone else is shown only the tasks they're
+  // assigned to or created, and the categories those fall under.
+  const canSeeAllTasks =
+    isAdmin ||
+    project.created_by === profile?.id ||
+    project.managers.some((m) => m.id === profile?.id);
 
   const [people, organizations] = isStaff
     ? await Promise.all([listAssignablePeopleWithOrgs(), listOrganizations()])
@@ -175,7 +182,13 @@ export default async function ProjectDetailPage({
         initialCommentCounts={workspace.commentCounts}
         initialLabels={workspace.labels}
         canDelete={isStaff}
-        canImport={isStaff}
+        // Importing is just a faster way of adding tasks, which members have
+        // always been able to do one at a time — so it's open to anyone who can
+        // open the project. tasks_insert and import_batches_insert both grant
+        // on can_access_project, so the database already allowed this; only the
+        // UI was hiding the button.
+        canImport
+        canSeeAllTasks={canSeeAllTasks}
         importBatches={importBatches}
         initialTaskId={initialTaskId}
         initialImportBatchId={initialImportBatchId}

@@ -22,10 +22,13 @@ export async function listCategoriesForProject(projectId: string) {
 }
 
 export async function createProjectQuick(name: string) {
+  // Anyone signed in, matching the New Project button on /projects — RLS
+  // (projects_insert) is what actually decides, and it allows any signed-in
+  // user.
   const user = await getCurrentUser();
   const profile = await getCurrentProfile();
-  if (!user || !profile || (profile.role !== "admin" && profile.role !== "manager")) {
-    return { error: "Only Admins and Managers can create projects." };
+  if (!user || !profile) {
+    return { error: "You need to be signed in to create a project." };
   }
 
   // Filed under the creator's organization like every other way of making a

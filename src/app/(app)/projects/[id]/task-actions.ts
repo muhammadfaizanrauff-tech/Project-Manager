@@ -287,7 +287,9 @@ export async function updateTask(
 
   const { data: before } = await supabase
     .from("tasks")
-    .select("name, assignee_id, status_id, recurrence, due_date, category_id, description, priority")
+    .select(
+      "name, assignee_id, status_id, recurrence, due_date, category_id, description, priority, created_by",
+    )
     .eq("id", taskId)
     .single();
 
@@ -454,6 +456,8 @@ async function handleRecurrence(
     category_id: string | null;
     description: string | null;
     priority: string;
+    assignee_id: string | null;
+    created_by: string | null;
   },
   patch: TaskPatch,
 ) {
@@ -478,6 +482,11 @@ async function handleRecurrence(
     .select("id", { count: "exact", head: true })
     .eq("category_id", before.category_id ?? "");
 
+  // The assignee and creator carry over. Beyond being what you'd expect of a
+  // repeating task, they're now what makes the next occurrence visible at all:
+  // since schema-v12 a task with neither is seen only by the project's
+  // managers, so an occurrence created without them would vanish from the very
+  // person who has to do it.
   await supabase.from("tasks").insert({
     project_id: projectId,
     category_id: before.category_id,
@@ -488,6 +497,8 @@ async function handleRecurrence(
     recurrence: before.recurrence,
     recurrence_parent_id: taskId,
     position: count ?? 0,
+    assignee_id: before.assignee_id,
+    created_by: before.created_by,
   });
 
   revalidatePath(`/projects/${projectId}`);

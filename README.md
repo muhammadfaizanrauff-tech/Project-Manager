@@ -96,6 +96,13 @@ who sees what:
   Admin, its assigned managers, its assigned members, and whoever created it. There is
   no role-wide or organization-wide default view — a new project is visible to its
   creator alone until someone is assigned.
+- **Task assignment decides what you can *read inside it* (schema-v12).** Opening a
+  project is not seeing all of it. A task is visible to the Admin, the project's
+  managers, the project's creator, the person it's assigned to, and the person who
+  created it. So a member added to a project sees the categories and their own tasks,
+  not their colleagues'. Every table hanging off a task — comments, checklist, links,
+  time logs — asks the same question, so there's no reading a hidden task's thread by
+  id. A task with no assignee is seen only by its creator and the project's leads.
 
 Applying `schema-v10.sql` to a database that already has data creates a single
 **"Main Organization"**, puts every existing user in it, and files every existing
