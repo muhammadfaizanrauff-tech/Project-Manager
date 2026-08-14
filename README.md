@@ -89,6 +89,9 @@ who sees what:
 - **Organization membership decides who you can *see*.** A Manager placed in an
   organization can find that organization's people when staffing a project, and
   nobody outside it. One company's manager never learns another company's staff list.
+  The Admin is the one exception: they work across every organization, so they are
+  always offered as a project manager, project member and task assignee, whoever is
+  doing the staffing.
 - **Project assignment decides what you can *open*.** A project is visible only to the
   Admin, its assigned managers, its assigned members, and whoever created it. There is
   no role-wide or organization-wide default view — a new project is visible to its
@@ -100,7 +103,17 @@ project under it — so nothing disappears on upgrade. Split it into real organi
 from **Settings → Organizations** afterwards.
 
 Managers may switch into (impersonate) only **Members of their own organizations** —
-never a fellow manager, and never the Admin.
+never a fellow manager, and never the Admin. Being assignable is not the same as being
+impersonatable: the Admin appears in the staffing pickers but never in the switch-into
+list.
+
+## Staying signed in
+
+Signing in lasts until you sign out. The app used to end the session the moment the
+browser closed; that was dropped on request, so the Supabase session cookie and its
+`pm_active` marker both outlive the browser process and the proxy refreshes the tokens
+on every request. The only things that end a session now are **Log out** and the
+Supabase refresh token finally expiring after a long stretch of no use.
 
 ## The Handbook
 

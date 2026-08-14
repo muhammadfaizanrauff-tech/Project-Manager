@@ -31,10 +31,9 @@ export async function login(
     return { error: "Incorrect email or password." };
   }
 
-  // Marks this browser session as active. Unlike the Supabase auth cookie (long-lived
-  // by design), this one has no maxAge — the browser drops it the moment the whole
-  // browser process closes, and `updateSession` (middleware.ts) treats its absence as
-  // "log back in", satisfying the log-out-on-browser-close requirement.
+  // Marks this browser as signed in. It outlives the browser process (see
+  // session-marker.ts) so closing and reopening keeps you logged in; only an
+  // explicit logout clears it.
   (await cookies()).set(ACTIVE_SESSION_COOKIE, "1", activeSessionCookieOptions);
 
   redirect(next.startsWith("/") ? next : "/dashboard");

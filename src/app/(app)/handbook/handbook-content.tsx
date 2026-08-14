@@ -634,13 +634,26 @@ const SECTIONS: Section[] = [
         <Steps
           items={[
             <>
-              Add a <strong>category</strong> first if you want the tasks grouped — otherwise
-              they land under &ldquo;Uncategorized&rdquo;.
+              Add a <strong>category</strong> first if you want the tasks grouped — the button
+              sits at the top of the project, next to Import and Export. A name can only be used
+              once per project, so adding one that already exists simply takes you to it. Rename
+              one later with the pencil beside its heading. Without a category, tasks land under
+              &ldquo;Uncategorized&rdquo;.
             </>,
-            <>Type a task name in the row at the bottom of a category and press Enter.</>,
+            <>
+              Every category starts collapsed — click its heading to open it. Inside, type a name
+              in the row at the bottom and press <strong>Add</strong> (Enter still works), or
+              press <strong>Add with details</strong> to fill in the description, priority,
+              status, due date and assignee first and confirm with <strong>Add task</strong>.
+            </>,
             <>
               Click the task name to open its drawer, where you set the description, assignee, due
               date, priority, status and repeat schedule.
+            </>,
+            <>
+              Tasks are listed newest first, and anything marked <strong>Done</strong> drops to
+              the bottom of its category in faded green — so what&apos;s still open is always at
+              the top.
             </>,
           ]}
         />
@@ -847,7 +860,7 @@ const SECTIONS: Section[] = [
           items={[
             <>Tasks created, edited, reassigned, moved to a new status, and deleted.</>,
             <>Comments written and deleted.</>,
-            <>Categories created and deleted.</>,
+            <>Categories created, renamed and deleted.</>,
             <>Projects created, edited, cloned and deleted.</>,
             <>Files imported, with how many rows landed.</>,
             <>Time logged and checklist items ticked.</>,

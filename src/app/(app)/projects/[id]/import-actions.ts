@@ -50,15 +50,20 @@ export async function bulkImportTasks(
   );
 
   let nextCategoryPosition = existingCategories?.length ?? 0;
-  const newCategoryNames = new Set<string>();
+  // Keyed by the lower-cased name, not the raw one: a sheet containing both
+  // "Design" and "design" means one category, and inserting both would trip the
+  // unique index added in schema-v11.sql.
+  const newCategoryNames = new Map<string, string>();
   for (const row of rows) {
     const name = row.category?.trim();
-    if (name && !categoryByName.has(name.toLowerCase())) {
-      newCategoryNames.add(name);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (!categoryByName.has(key) && !newCategoryNames.has(key)) {
+      newCategoryNames.set(key, name);
     }
   }
 
-  for (const name of newCategoryNames) {
+  for (const name of newCategoryNames.values()) {
     const { data, error } = await supabase
       .from("categories")
       .insert({ project_id: projectId, name, position: nextCategoryPosition++ })

@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { upsertById } from "@/lib/utils";
 import type { ImportBatch } from "@/lib/imports";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
+import { AddCategoryButton } from "./add-category-button";
 import { listComments } from "./comment-actions";
 import { ExportMenu } from "./export-menu";
 import { ImportDialog } from "./import-dialog";
@@ -163,7 +164,7 @@ export function ProjectWorkspace({
         </div>
 
         {view !== "dashboard" && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canImport && (
               <>
                 <ImportDialog projectId={projectId} categories={categories} />
@@ -186,6 +187,25 @@ export function ProjectWorkspace({
               PDF is the report you hand to someone — grouped by category, colour-coded, and
               stamped with your name. Excel is a flat sheet. JSON is a full backup.
             </HelpTip>
+            {/* Sits beside Export rather than under the last group of tasks,
+                where it used to be — you shouldn't have to scroll a hundred
+                rows to start a new group. */}
+            {view === "table" && (
+              <>
+                <AddCategoryButton
+                  projectId={projectId}
+                  categories={categories}
+                  onCreated={(category) =>
+                    setCategories((prev) => upsertById(prev, category))
+                  }
+                />
+                <HelpTip topic="tasks">
+                  Categories are the groups tasks sit under in the table. Each name can only be
+                  used once in a project, so adding one that already exists just takes you to it.
+                  Rename one from the pencil beside its heading.
+                </HelpTip>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -196,6 +216,7 @@ export function ProjectWorkspace({
           categories={categories}
           tasks={tasks}
           statuses={statuses}
+          members={members}
           canDelete={canDelete}
           commentCounts={commentCounts}
           onCategoriesChange={setCategories}

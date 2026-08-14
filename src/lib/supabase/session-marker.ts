@@ -1,16 +1,24 @@
 import "server-only";
 
-// A plain, JS-writable cookie with NO `maxAge`/`expires` — a true browser-session
-// cookie per spec, cleared by the browser only when the whole process closes (not
-// just the tab). The real Supabase auth cookie is long-lived (400 days, hardcoded by
-// @supabase/ssr) so it survives a browser restart on its own; this marker is what lets
-// `updateSession` (src/lib/supabase/middleware.ts) detect "browser was closed and
-// reopened" and force a fresh login, per the product's "log out on browser close"
-// requirement.
+// Marks a browser as signed in. It used to be a true browser-session cookie (no
+// `maxAge`), which is what made `updateSession` force a fresh login every time
+// the browser was closed and reopened. That behaviour was dropped on request:
+// people want to stay signed in, so the marker now outlives the browser process
+// and only disappears on an explicit logout.
+//
+// It is still set and cleared alongside sign-in/sign-out because the
+// impersonation flow (src/app/(app)/impersonate-actions.ts) uses it to tell a
+// live session from a stale one when restoring the Admin's own account.
 export const ACTIVE_SESSION_COOKIE = "pm_active";
+
+/** A year, matching how long people expect "keep me signed in" to last. The
+ *  Supabase auth cookie itself is longer-lived still (400 days, hardcoded by
+ *  @supabase/ssr) and is refreshed on every request by the proxy. */
+const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 export const activeSessionCookieOptions = {
   path: "/",
   sameSite: "lax" as const,
   httpOnly: true,
+  maxAge: ONE_YEAR_SECONDS,
 };

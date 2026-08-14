@@ -115,7 +115,9 @@ export type AssignablePerson = {
  *
  * The Admin can staff anyone. Everyone else only ever sees people from the
  * organizations they belong to — that's the whole point of organizations, and
- * it's why one company's Manager never sees another company's staff list.
+ * it's why one company's Manager never sees another company's staff list. The
+ * one exception is the Admins themselves: they're always offered, since they
+ * work across every organization and need to be assignable to any project.
  *
  * The org tags come back with the people rather than as a second query per
  * selection, so the project dialogs can re-filter the picker the instant a
@@ -125,7 +127,9 @@ export async function listAssignablePeopleWithOrgs(): Promise<AssignablePerson[]
   const profile = await getCurrentProfile();
   if (!profile) return [];
 
-  const people = await visiblePeopleForUser(profile.id, profile.role);
+  const people = await visiblePeopleForUser(profile.id, profile.role, {
+    includeAdmins: true,
+  });
   if (people.length === 0) return [];
 
   const supabase = await createClient();

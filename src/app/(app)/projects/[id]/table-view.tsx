@@ -6,13 +6,24 @@ import {
   useDeferredValue,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type Dispatch,
   type SetStateAction,
 } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CheckSquare, ChevronDown, Clock, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import {
+  Check,
+  CheckSquare,
+  ChevronDown,
+  Clock,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,12 +40,13 @@ import {
 import {
   bulkDeleteTasks,
   bulkUpdateTasks,
-  createCategory,
   createTask,
   deleteCategory,
   deleteTask,
+  renameCategory,
   updateTask,
 } from "./task-actions";
+import { NewTaskDialog } from "./new-task-dialog";
 import { ALL_COLUMNS, TableToolbar, type ColumnKey, type TaskFilters } from "./table-toolbar";
 
 const UNCATEGORIZED = { id: "__none__", name: "Uncategorized" };
@@ -50,6 +62,12 @@ function accentFor(id: string) {
 
 type TaskPatch = Parameters<typeof updateTask>[2];
 
+// A finished task stays on the list — you still want to see what got done —
+// but it steps back visually: a light green wash and dimmed text, so the eye
+// lands on the work that's still open above it.
+const DONE_ROW_CLASS =
+  "bg-green-50 text-muted-foreground opacity-70 hover:bg-green-100/70 dark:bg-green-500/10 dark:hover:bg-green-500/15";
+
 // Every row mounts a checkbox, two dropdowns and a date input, so a project
 // with a few hundred tasks has well over a thousand interactive components on
 // screen. Memoising the row means a state change in the parent (typing in
@@ -62,6 +80,7 @@ const TaskRow = memo(function TaskRow({
   visibleColumns,
   canDelete,
   isSelected,
+  isDone,
   commentCount,
   deleteRequested,
   onToggleSelect,
@@ -75,6 +94,7 @@ const TaskRow = memo(function TaskRow({
   visibleColumns: Set<ColumnKey>;
   canDelete: boolean;
   isSelected: boolean;
+  isDone: boolean;
   commentCount: number;
   deleteRequested: boolean;
   onToggleSelect: (taskId: string) => void;
@@ -85,9 +105,9 @@ const TaskRow = memo(function TaskRow({
 }) {
   return (
     <tr
-      className={`border-b last:border-0 transition-colors hover:bg-primary/[0.04] ${
-        isSelected ? "bg-primary/[0.06]" : ""
-      }`}
+      className={`border-b last:border-0 transition-colors ${
+        isDone ? DONE_ROW_CLASS : "hover:bg-primary/[0.04]"
+      } ${isSelected ? "bg-primary/[0.06]" : ""}`}
     >
       <td className="px-3 py-2">
         <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(task.id)} />
@@ -101,7 +121,9 @@ const TaskRow = memo(function TaskRow({
       </td>
       <td className="px-3 py-2">
         <button
-          className="text-left font-medium transition-colors hover:text-primary"
+          className={`text-left font-medium transition-colors hover:text-primary ${
+            isDone ? "line-through decoration-muted-foreground/50" : ""
+          }`}
           onClick={() => onOpenTask(task)}
         >
           {task.name}
@@ -185,6 +207,7 @@ const TaskCard = memo(function TaskCard({
   visibleColumns,
   canDelete,
   isSelected,
+  isDone,
   commentCount,
   deleteRequested,
   onToggleSelect,
@@ -198,6 +221,7 @@ const TaskCard = memo(function TaskCard({
   visibleColumns: Set<ColumnKey>;
   canDelete: boolean;
   isSelected: boolean;
+  isDone: boolean;
   commentCount: number;
   deleteRequested: boolean;
   onToggleSelect: (taskId: string) => void;
@@ -209,8 +233,8 @@ const TaskCard = memo(function TaskCard({
   return (
     <div
       className={`flex flex-col gap-2 border-b p-3 last:border-0 ${
-        isSelected ? "bg-primary/[0.06]" : ""
-      }`}
+        isDone ? DONE_ROW_CLASS : ""
+      } ${isSelected ? "bg-primary/[0.06]" : ""}`}
     >
       <div className="flex items-start gap-2.5">
         <span className="flex size-8 shrink-0 items-center justify-center">
@@ -220,7 +244,13 @@ const TaskCard = memo(function TaskCard({
           className="min-w-0 flex-1 text-left"
           onClick={() => onOpenTask(task)}
         >
-          <span className="block text-sm font-medium leading-snug">{task.name}</span>
+          <span
+            className={`block text-sm font-medium leading-snug ${
+              isDone ? "line-through decoration-muted-foreground/50" : ""
+            }`}
+          >
+            {task.name}
+          </span>
           <span className="mt-0.5 block text-[11px] text-muted-foreground">
             #{task.serial_no} ·{" "}
             {new Date(task.created_at).toLocaleDateString("en-US", {
@@ -297,6 +327,7 @@ export function TableView({
   categories,
   tasks,
   statuses,
+  members,
   canDelete,
   commentCounts,
   onCategoriesChange,
@@ -310,6 +341,8 @@ export function TableView({
   categories: CategoryRecord[];
   tasks: TaskRecord[];
   statuses: Status[];
+  /** Who a new task can be assigned to from the Add task dialog. */
+  members: { id: string; full_name: string | null; role: string }[];
   canDelete: boolean;
   commentCounts: Record<string, number>;
   importBatches: ImportBatch[];
@@ -322,10 +355,17 @@ export function TableView({
   onTaskUpdate: (taskId: string, patch: Partial<TaskRecord>) => void;
   onOpenTask: (task: TaskRecord) => void;
 }) {
-  const [newCategoryName, setNewCategoryName] = useState("");
-  const [addingCategory, setAddingCategory] = useState(false);
   const [newTaskName, setNewTaskName] = useState<Record<string, string>>({});
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Tracked as "which are open" rather than "which are closed" so everything
+  // starts collapsed on every visit — a project with a dozen categories is a
+  // wall of rows otherwise. Nothing is persisted: closed is the state you get
+  // each time you log in or open the project, by request.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  /** Which category the Add task dialog is currently adding to. */
+  const [addTaskTo, setAddTaskTo] = useState<CategoryRecord | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [requestedDeleteIds, setRequestedDeleteIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<TaskFilters>(DEFAULT_FILTERS);
@@ -352,6 +392,26 @@ export function TableView({
       setFilters((prev) => ({ ...prev, importBatchId: initialImportBatchId }));
     }
   }, [projectId, initialImportBatchId]);
+
+  // "Everything starts closed" shouldn't mean a category you just added stays
+  // hidden, so anything that turns up after the first render — your own new
+  // category, or someone else's arriving over Realtime — opens itself.
+  const knownCategoryIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const ids = categories.map((c) => c.id);
+    if (knownCategoryIds.current === null) {
+      knownCategoryIds.current = new Set(ids);
+      return;
+    }
+    const fresh = ids.filter((id) => !knownCategoryIds.current!.has(id));
+    knownCategoryIds.current = new Set(ids);
+    if (fresh.length === 0) return;
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      fresh.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [categories]);
 
   function updateFilters(next: TaskFilters) {
     setFilters(next);
@@ -404,19 +464,43 @@ export function TableView({
     [tasks, filters, query, statusLabelById],
   );
 
+  // Statuses are configurable rows, not an enum, so "finished" is matched on
+  // the label the same way the rest of the app does it.
+  const doneStatusIds = useMemo(
+    () => new Set(statuses.filter((s) => s.label === "Done").map((s) => s.id)),
+    [statuses],
+  );
+
+  const isDone = useCallback(
+    (task: TaskRecord) => Boolean(task.status_id && doneStatusIds.has(task.status_id)),
+    [doneStatusIds],
+  );
+
   const groups = useMemo(
     () =>
       [...categories, UNCATEGORIZED as CategoryRecord].map((cat) => ({
         category: cat,
         tasks: filteredTasks
           .filter((t) => (t.category_id ?? UNCATEGORIZED.id) === cat.id)
-          .sort((a, b) => a.position - b.position),
+          // Two rules, in order: unfinished work sits above anything already
+          // done, and within each half the newest task is first. `position`
+          // only breaks ties now — it still drives the Kanban ordering, but in
+          // the table it meant new tasks landed at the bottom of a long list.
+          .sort((a, b) => {
+            const doneA = isDone(a);
+            const doneB = isDone(b);
+            if (doneA !== doneB) return doneA ? 1 : -1;
+            const byCreated =
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            if (byCreated !== 0) return byCreated;
+            return b.position - a.position;
+          }),
       })),
-    [categories, filteredTasks],
+    [categories, filteredTasks, isDone],
   );
 
   function toggleCollapsed(categoryId: string) {
-    setCollapsed((prev) => {
+    setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(categoryId)) next.delete(categoryId);
       else next.add(categoryId);
@@ -433,16 +517,31 @@ export function TableView({
     });
   }, []);
 
-  function handleAddCategory() {
-    const name = newCategoryName.trim();
-    if (!name) return;
-    setNewCategoryName("");
-    setAddingCategory(false);
+  function startRename(category: CategoryRecord) {
+    setRenamingId(category.id);
+    setRenameValue(category.name);
+    setRenameError(null);
+  }
+
+  function handleRename(categoryId: string) {
+    const name = renameValue.trim();
+    const current = categories.find((c) => c.id === categoryId);
+    if (!name || name === current?.name) {
+      setRenamingId(null);
+      return;
+    }
+
     startTransition(async () => {
-      const result = await createCategory(projectId, name);
+      const result = await renameCategory(projectId, categoryId, name);
+      if (result.error) {
+        setRenameError(result.error);
+        return;
+      }
       if (result.data) {
         onCategoriesChange((prev) => upsertById(prev, result.data as CategoryRecord));
       }
+      setRenamingId(null);
+      setRenameError(null);
     });
   }
 
@@ -542,6 +641,15 @@ export function TableView({
 
   const colSpan = 2 + 1 + visibleColumns.size + 2;
 
+  // Collapsed-by-default and searching don't mix: the toolbar would report
+  // "12 results" above twelve closed groups. While a search or filter is on,
+  // any group that still has matches shows them.
+  const isFiltering =
+    query.length > 0 ||
+    filters.priorities.length > 0 ||
+    filters.statusIds.length > 0 ||
+    Boolean(filters.importBatchId);
+
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <TableToolbar
@@ -559,7 +667,11 @@ export function TableView({
       <div className="flex min-w-0 flex-col gap-5">
         {groups.map(({ category, tasks: groupTasks }, index) => {
           if (category.id === UNCATEGORIZED.id && groupTasks.length === 0) return null;
-          const isCollapsed = collapsed.has(category.id);
+          const isCollapsed = isFiltering
+            ? groupTasks.length === 0
+            : !expanded.has(category.id);
+          const isRenaming = renamingId === category.id;
+          const openCount = groupTasks.filter((t) => !isDone(t)).length;
 
           return (
             <motion.div
@@ -574,41 +686,112 @@ export function TableView({
               }
               className="min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm"
             >
-              <button
-                onClick={() => toggleCollapsed(category.id)}
-                className="flex w-full items-center justify-between gap-3 border-b bg-muted/30 px-4 py-2.5 text-left transition-colors hover:bg-muted/50"
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <motion.span
-                    animate={{ rotate: isCollapsed ? -90 : 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="shrink-0 text-muted-foreground"
+              {/* A row rather than one big button: renaming puts a text input
+                  in here, and an input nested inside a <button> can't be typed
+                  into. Only the title area toggles the group now. */}
+              <div className="flex w-full items-center justify-between gap-3 border-b bg-muted/30 px-4 py-2.5">
+                {isRenaming ? (
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Input
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => {
+                          setRenameValue(e.target.value);
+                          setRenameError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleRename(category.id);
+                          if (e.key === "Escape") {
+                            setRenamingId(null);
+                            setRenameError(null);
+                          }
+                        }}
+                        aria-label={`Rename ${category.name}`}
+                        className="h-8"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleRename(category.id)}
+                        disabled={!renameValue.trim()}
+                      >
+                        <Check className="size-3.5" />
+                        Save
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setRenamingId(null);
+                          setRenameError(null);
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                    {renameError && (
+                      <p className="text-xs text-destructive">{renameError}</p>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => toggleCollapsed(category.id)}
+                    aria-expanded={!isCollapsed}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
                   >
-                    <ChevronDown className="size-4" />
-                  </motion.span>
-                  <h3 className="truncate text-sm font-semibold">{category.name}</h3>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {groupTasks.length} task{groupTasks.length === 1 ? "" : "s"}
-                  </span>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <CategoryDonut tasks={groupTasks} statuses={statuses} />
-                  {canDelete && category.id !== UNCATEGORIZED.id && (
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteCategory(category.id);
-                      }}
-                      className="text-muted-foreground hover:text-destructive"
-                      title="Delete category"
+                    <motion.span
+                      animate={{ rotate: isCollapsed ? -90 : 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="shrink-0 text-muted-foreground"
                     >
-                      <Trash2 className="size-4" />
+                      <ChevronDown className="size-4" />
+                    </motion.span>
+                    <h3 className="truncate text-sm font-semibold">{category.name}</h3>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {openCount} open / {groupTasks.length} task
+                      {groupTasks.length === 1 ? "" : "s"}
                     </span>
-                  )}
-                </div>
-              </button>
+                  </button>
+                )}
+
+                {!isRenaming && (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <CategoryDonut tasks={groupTasks} statuses={statuses} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAddTaskTo(category);
+                        setExpanded((prev) => new Set(prev).add(category.id));
+                      }}
+                      title={`Add a task to ${category.name}`}
+                    >
+                      <Plus className="size-3.5" />
+                      <span className="hidden sm:inline">Add task</span>
+                    </Button>
+                    {category.id !== UNCATEGORIZED.id && (
+                      <button
+                        onClick={() => startRename(category)}
+                        className="text-muted-foreground hover:text-primary"
+                        aria-label={`Rename ${category.name}`}
+                        title="Rename category"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                    )}
+                    {canDelete && category.id !== UNCATEGORIZED.id && (
+                      <button
+                        onClick={() => handleDeleteCategory(category.id)}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label={`Delete ${category.name}`}
+                        title="Delete category"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <AnimatePresence initial={false}>
                 {!isCollapsed && (
@@ -629,6 +812,7 @@ export function TableView({
                           visibleColumns={visibleColumns}
                           canDelete={canDelete}
                           isSelected={selected.has(task.id)}
+                          isDone={isDone(task)}
                           commentCount={commentCounts[task.id] ?? 0}
                           deleteRequested={requestedDeleteIds.has(task.id)}
                           onToggleSelect={toggleSelected}
@@ -638,23 +822,40 @@ export function TableView({
                           onRequestDelete={handleRequestDelete}
                         />
                       ))}
-                      <div className="flex items-center gap-2 p-3">
-                        <Plus className="size-4 shrink-0 text-muted-foreground" />
-                        <input
-                          value={newTaskName[category.id] ?? ""}
-                          onChange={(e) =>
-                            setNewTaskName((prev) => ({
-                              ...prev,
-                              [category.id]: e.target.value,
-                            }))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleAddTask(category.id);
-                          }}
-                          placeholder="Add task"
-                          aria-label={`Add a task to ${category.name}`}
-                          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                        />
+                      <div className="flex flex-col gap-2 p-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            value={newTaskName[category.id] ?? ""}
+                            onChange={(e) =>
+                              setNewTaskName((prev) => ({
+                                ...prev,
+                                [category.id]: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleAddTask(category.id);
+                            }}
+                            placeholder="Add task"
+                            aria-label={`Add a task to ${category.name}`}
+                            className="min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => handleAddTask(category.id)}
+                            disabled={!(newTaskName[category.id] ?? "").trim()}
+                          >
+                            <Plus className="size-3.5" />
+                            Add
+                          </Button>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="self-start"
+                          onClick={() => setAddTaskTo(category)}
+                        >
+                          Add with details…
+                        </Button>
                       </div>
                     </div>
 
@@ -694,6 +895,7 @@ export function TableView({
                               visibleColumns={visibleColumns}
                               canDelete={canDelete}
                               isSelected={selected.has(task.id)}
+                              isDone={isDone(task)}
                               commentCount={commentCounts[task.id] ?? 0}
                               deleteRequested={requestedDeleteIds.has(task.id)}
                               onToggleSelect={toggleSelected}
@@ -705,8 +907,11 @@ export function TableView({
                           ))}
                           <tr>
                             <td colSpan={colSpan} className="px-3 py-2">
+                              {/* Typing and pressing Enter still works, but it
+                                  is no longer the only way in: Add commits the
+                                  line, and Add with details opens the full form
+                                  with a confirm button. */}
                               <div className="flex items-center gap-2">
-                                <Plus className="size-3.5 text-muted-foreground" />
                                 <input
                                   value={newTaskName[category.id] ?? ""}
                                   onChange={(e) =>
@@ -719,8 +924,24 @@ export function TableView({
                                     if (e.key === "Enter") handleAddTask(category.id);
                                   }}
                                   placeholder="Add task"
-                                  className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                  aria-label={`Add a task to ${category.name}`}
+                                  className="min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus:border-primary/50"
                                 />
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAddTask(category.id)}
+                                  disabled={!(newTaskName[category.id] ?? "").trim()}
+                                >
+                                  <Plus className="size-3.5" />
+                                  Add
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setAddTaskTo(category)}
+                                >
+                                  Add with details…
+                                </Button>
                               </div>
                             </td>
                           </tr>
@@ -734,36 +955,35 @@ export function TableView({
           );
         })}
 
-        {addingCategory ? (
-          <div className="flex items-center gap-2 rounded-xl border border-dashed p-3">
-            <Input
-              autoFocus
-              value={newCategoryName}
-              onChange={(e) => setNewCategoryName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddCategory();
-                if (e.key === "Escape") setAddingCategory(false);
-              }}
-              placeholder="Category name"
-              className="h-8"
-            />
-            <Button size="sm" onClick={handleAddCategory}>
-              Add
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setAddingCategory(false)}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setAddingCategory(true)}
-            className="flex items-center gap-2 self-start rounded-xl border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-          >
-            <Plus className="size-4" />
-            Add category
-          </button>
+        {categories.length === 0 && (
+          <p className="rounded-xl border border-dashed px-3 py-4 text-sm text-muted-foreground">
+            No categories yet — use <strong>Add category</strong> at the top of this page to make
+            the first one.
+          </p>
         )}
       </div>
+
+      {/* Keyed by category so reopening it for a different group starts from a
+          blank form rather than the last one's half-typed fields. */}
+      {addTaskTo && (
+        <NewTaskDialog
+          key={addTaskTo.id}
+          projectId={projectId}
+          categoryId={addTaskTo.id === UNCATEGORIZED.id ? null : addTaskTo.id}
+          categoryName={addTaskTo.name}
+          statuses={statuses}
+          members={members}
+          initialName={newTaskName[addTaskTo.id] ?? ""}
+          open
+          onOpenChange={(open) => {
+            if (!open) setAddTaskTo(null);
+          }}
+          onCreated={(task) => {
+            onTasksChange((prev) => upsertById(prev, task));
+            setNewTaskName((prev) => ({ ...prev, [addTaskTo.id]: "" }));
+          }}
+        />
+      )}
 
       <AnimatePresence>
         {selected.size > 0 && (

@@ -145,7 +145,7 @@ export default async function ProjectDetailPage({
               {project.organization_name}
               <HelpTip topic="organizations">
                 The organization this project belongs to. Only people in it can be staffed onto
-                the project.
+                the project — plus the Admin, who can be assigned to any project.
               </HelpTip>
             </span>
           )}

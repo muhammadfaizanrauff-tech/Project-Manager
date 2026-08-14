@@ -49,8 +49,14 @@ export function ProjectPeopleFields({
     defaultOrganizationId ?? organizations[0]?.id ?? "",
   );
 
+  // Admins are deliberately exempt from the organization filter — they operate
+  // across all of them, and need to be assignable to any project as a manager,
+  // a member, or a task's assignee.
   const eligible = useMemo(
-    () => (orgId ? people.filter((p) => p.org_ids.includes(orgId)) : people),
+    () =>
+      orgId
+        ? people.filter((p) => p.role === "admin" || p.org_ids.includes(orgId))
+        : people,
     [people, orgId],
   );
 
@@ -66,7 +72,7 @@ export function ProjectPeopleFields({
   }, [orgId, eligible]);
 
   const managerOptions: MultiSelectOption[] = eligible
-    .filter((p) => p.role === "manager")
+    .filter((p) => p.role === "manager" || p.role === "admin")
     .map((p) => ({ value: p.id, label: p.full_name || "Unnamed user", hint: p.role }));
 
   const memberOptions: MultiSelectOption[] = eligible.map((p) => ({
@@ -85,7 +91,8 @@ export function ProjectPeopleFields({
           Organization
           <HelpTip topic="organizations">
             Which company this project belongs to. It decides who you can staff it with — only
-            people in this organization appear in the pickers below.
+            people in this organization appear in the pickers below, plus the Admin, who works
+            across all of them.
           </HelpTip>
         </Label>
         {canChooseOrganization && organizations.length > 1 ? (

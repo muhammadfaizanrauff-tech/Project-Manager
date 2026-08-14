@@ -1,4 +1,5 @@
 import "server-only";
+import { listAdmins } from "@/lib/organizations";
 import { createClient } from "@/lib/supabase/server";
 
 export type Status = {
@@ -59,7 +60,7 @@ export async function getProjectWorkspaceData(
 ): Promise<ProjectWorkspaceData> {
   const supabase = await createClient();
 
-  const [categoriesRes, tasksRes, statusesRes, membersRes, labelsRes] = await Promise.all([
+  const [categoriesRes, tasksRes, statusesRes, membersRes, labelsRes, admins] = await Promise.all([
     supabase
       .from("categories")
       .select("id, project_id, name, position")
@@ -82,6 +83,13 @@ export async function getProjectWorkspaceData(
       .select("id, project_id, name, color")
       .eq("project_id", projectId)
       .order("name"),
+    // Admins work across every project without necessarily being staffed on
+    // one, so they'd be missing from a list built from project_members alone —
+    // which is exactly the "can't assign a task to the Admin" complaint. Read
+    // through the service client (inside listAdmins) because `profiles` is no
+    // longer world-readable: a Manager's own RLS view may not include the
+    // Admin's row at all.
+    listAdmins(),
   ]);
 
   const taskIds = (tasksRes.data ?? []).map((t) => t.id);
@@ -96,13 +104,19 @@ export async function getProjectWorkspaceData(
     }
   }
 
+  const staffed = (membersRes.data ?? []).map(
+    (m) => m.profiles as unknown as { id: string; full_name: string | null; role: string },
+  );
+  const byId = new Map(staffed.filter(Boolean).map((p) => [p.id, p]));
+  for (const admin of admins) {
+    if (!byId.has(admin.id)) byId.set(admin.id, admin);
+  }
+
   return {
     categories: categoriesRes.data ?? [],
     tasks: tasksRes.data ?? [],
     statuses: statusesRes.data ?? [],
-    members: (membersRes.data ?? []).map(
-      (m) => m.profiles as unknown as { id: string; full_name: string | null; role: string },
-    ),
+    members: Array.from(byId.values()),
     commentCounts,
     labels: labelsRes.data ?? [],
   };

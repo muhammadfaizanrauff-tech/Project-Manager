@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { ACTIVE_SESSION_COOKIE } from "./session-marker";
+import { ACTIVE_SESSION_COOKIE, activeSessionCookieOptions } from "./session-marker";
 
 const PUBLIC_PATHS = ["/login", "/change-password", "/auth"];
 
@@ -46,25 +46,18 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // The Supabase auth cookie itself is long-lived (400 days, hardcoded by
-  // @supabase/ssr) so it survives closing the browser on its own. The
-  // `pm_active` marker cookie (set at login, no maxAge) is what actually
-  // expires when the browser closes — its absence here means "this is a
-  // fresh browser session with a stale-but-valid auth cookie", so force a
-  // real logout instead of letting it through.
-  if (user && !isPublicPath(request.nextUrl.pathname) && !request.cookies.get(ACTIVE_SESSION_COOKIE)) {
-    await supabase.auth.signOut();
-
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("next", request.nextUrl.pathname);
-    url.searchParams.set("expired", "1");
-    const redirectResponse = NextResponse.redirect(url);
-    // `signOut()` queued its cookie-clearing headers onto `response` via the
-    // `setAll` callback above — carry them over, since NextResponse.redirect
-    // creates a brand-new response that wouldn't otherwise include them.
-    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie));
-    return redirectResponse;
+  // A signed-in session is deliberately left alone from here on. This used to
+  // check for the `pm_active` marker cookie and force a logout when it was
+  // missing, which is what signed people out every time they closed the
+  // browser; that requirement was dropped. `getUser()` above already refreshed
+  // the Supabase tokens on this request, so an open session keeps renewing
+  // itself for as long as it's used and only ends at an explicit sign-out.
+  //
+  // Anyone still holding the old session-only marker gets it re-issued with a
+  // proper expiry, so the change takes effect without a round trip through the
+  // login page.
+  if (user && !request.cookies.get(ACTIVE_SESSION_COOKIE)) {
+    response.cookies.set(ACTIVE_SESSION_COOKIE, "1", activeSessionCookieOptions);
   }
 
   return response;

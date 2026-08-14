@@ -85,6 +85,18 @@ export async function orgIdsForUser(userId: string): Promise<string[]> {
   return (data ?? []).map((r) => r.org_id);
 }
 
+/** Every Admin, regardless of organization. Admins sit above the tenancy
+ *  boundary, so when they're allowed into a list at all they're always in it. */
+export async function listAdmins(): Promise<OrganizationPerson[]> {
+  const service = createServiceClient();
+  const { data } = await service
+    .from("profiles")
+    .select("id, full_name, role")
+    .eq("role", "admin")
+    .order("full_name");
+  return (data ?? []) as OrganizationPerson[];
+}
+
 /**
  * Everyone the given user is allowed to see and work with.
  *
@@ -95,10 +107,18 @@ export async function orgIdsForUser(userId: string): Promise<string[]> {
  * Settings → Users list, and who a Manager may switch into. Service client on
  * purpose: it's also called to validate a request server-side, where relying
  * on the caller's own RLS view would be circular.
+ *
+ * `includeAdmins` is what separates the two kinds of caller. Impersonation and
+ * the Settings → Users list must never offer an Admin to a Manager, so they
+ * take the default. Staffing a project is the opposite case — an Admin needs to
+ * be assignable as a project manager, member or task assignee by anyone — so
+ * `listAssignablePeopleWithOrgs` opts in, and gets every Admin appended whether
+ * or not they happen to share an organization with the caller.
  */
 export async function visiblePeopleForUser(
   userId: string,
   role: "admin" | "manager" | "member",
+  { includeAdmins = false }: { includeAdmins?: boolean } = {},
 ): Promise<OrganizationPerson[]> {
   const service = createServiceClient();
 
@@ -111,25 +131,33 @@ export async function visiblePeopleForUser(
   }
 
   const orgIds = await orgIdsForUser(userId);
-  if (orgIds.length === 0) return [];
 
-  const { data: memberRows } = await service
-    .from("organization_members")
-    .select("user_id")
-    .in("org_id", orgIds);
+  let people: OrganizationPerson[] = [];
+  if (orgIds.length > 0) {
+    const { data: memberRows } = await service
+      .from("organization_members")
+      .select("user_id")
+      .in("org_id", orgIds);
 
-  const ids = Array.from(new Set((memberRows ?? []).map((r) => r.user_id)));
-  if (ids.length === 0) return [];
-
-  const { data } = await service
-    .from("profiles")
-    .select("id, full_name, role")
-    .in("id", ids)
-    .order("full_name");
+    const ids = Array.from(new Set((memberRows ?? []).map((r) => r.user_id)));
+    if (ids.length > 0) {
+      const { data } = await service
+        .from("profiles")
+        .select("id, full_name, role")
+        .in("id", ids)
+        .order("full_name");
+      people = (data ?? []) as OrganizationPerson[];
+    }
+  }
 
   // The Admin is a member of organizations for bookkeeping reasons but is
-  // never staffable or switchable by anyone else.
-  return ((data ?? []) as OrganizationPerson[]).filter((p) => p.role !== "admin");
+  // never switchable by anyone else, so they're dropped unless a caller that
+  // only needs them as an assignment target asks for them back.
+  const withoutAdmins = people.filter((p) => p.role !== "admin");
+  if (!includeAdmins) return withoutAdmins;
+
+  const admins = await listAdmins();
+  return [...admins, ...withoutAdmins];
 }
 
 /** True when both users share at least one organization. */

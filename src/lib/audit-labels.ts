@@ -22,6 +22,7 @@ export type AuditAction =
   | "subtask.delete"
   | "time.log"
   | "category.create"
+  | "category.rename"
   | "category.delete"
   | "project.create"
   | "project.update"
@@ -74,6 +75,7 @@ export const AUDIT_LABELS: Record<string, string> = {
   "subtask.delete": "Removed a checklist item",
   "time.log": "Logged time",
   "category.create": "Created a category",
+  "category.rename": "Renamed a category",
   "category.delete": "Deleted a category",
   "project.create": "Created a project",
   "project.update": "Edited a project",

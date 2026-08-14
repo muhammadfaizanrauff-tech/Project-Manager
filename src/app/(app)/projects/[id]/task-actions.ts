@@ -29,8 +29,26 @@ async function client() {
   return createClient();
 }
 
+/**
+ * Add a category, or hand back the one that's already there.
+ *
+ * Two categories with the same name in one project is never what anyone meant:
+ * it splits a team's tasks across two identical-looking headers. It happened
+ * because nothing here was idempotent — a double-click, a retried Server
+ * Action, or two people typing the same name at once each inserted a row. The
+ * name lookup below makes the common case a no-op, and the unique index in
+ * schema-v11.sql closes the race the lookup can't (two inserts in flight at
+ * once), which is why a 23505 is treated as success and re-read rather than
+ * surfaced as an error.
+ */
 export async function createCategory(projectId: string, name: string) {
   const supabase = await client();
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the category a name." };
+
+  const existing = await findCategoryByName(supabase, projectId, trimmed);
+  if (existing) return { data: existing };
+
   const { count } = await supabase
     .from("categories")
     .select("id", { count: "exact", head: true })
@@ -38,7 +56,73 @@ export async function createCategory(projectId: string, name: string) {
 
   const { data, error } = await supabase
     .from("categories")
-    .insert({ project_id: projectId, name, position: count ?? 0 })
+    .insert({ project_id: projectId, name: trimmed, position: count ?? 0 })
+    .select("id, project_id, name, position")
+    .single();
+
+  if (error) {
+    // 23505 = the unique index fired, so someone else won the race by
+    // milliseconds. Their row is the right answer.
+    if (error.code === "23505") {
+      const winner = await findCategoryByName(supabase, projectId, trimmed);
+      if (winner) return { data: winner };
+    }
+    return { error: error.message };
+  }
+
+  const who = await actor();
+  void recordAudit({
+    actorId: who.id,
+    action: "category.create",
+    entityType: "category",
+    entityId: data.id,
+    entityName: trimmed,
+    projectId,
+  });
+
+  revalidatePath(`/projects/${projectId}`);
+  return { data };
+}
+
+/** Case-insensitive name lookup within one project. `ilike` with the name
+ *  escaped so a category called "50%" doesn't match everything. */
+async function findCategoryByName(
+  supabase: Awaited<ReturnType<typeof client>>,
+  projectId: string,
+  name: string,
+) {
+  const { data } = await supabase
+    .from("categories")
+    .select("id, project_id, name, position")
+    .eq("project_id", projectId)
+    .ilike("name", name.replace(/[%_\\]/g, "\\$&"))
+    .order("position")
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
+export async function renameCategory(
+  projectId: string,
+  categoryId: string,
+  name: string,
+) {
+  const supabase = await client();
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the category a name." };
+
+  // Renaming onto a name that already exists would create the very duplicate
+  // createCategory now prevents, so it's refused with a sentence rather than a
+  // Postgres constraint code.
+  const clash = await findCategoryByName(supabase, projectId, trimmed);
+  if (clash && clash.id !== categoryId) {
+    return { error: `There's already a category called "${clash.name}".` };
+  }
+
+  const { data, error } = await supabase
+    .from("categories")
+    .update({ name: trimmed })
+    .eq("id", categoryId)
     .select("id, project_id, name, position")
     .single();
 
@@ -47,10 +131,10 @@ export async function createCategory(projectId: string, name: string) {
   const who = await actor();
   void recordAudit({
     actorId: who.id,
-    action: "category.create",
+    action: "category.rename",
     entityType: "category",
-    entityId: data.id,
-    entityName: name,
+    entityId: categoryId,
+    entityName: trimmed,
     projectId,
   });
 
@@ -83,10 +167,21 @@ export async function deleteCategory(projectId: string, categoryId: string) {
   return { ok: true };
 }
 
+/** The fields the "Add task" dialog can fill in up front. Everything is
+ *  optional, so the quick one-line add still calls this with just a name. */
+export type NewTaskDetails = Partial<{
+  description: string | null;
+  priority: "high" | "medium" | "low";
+  status_id: string | null;
+  due_date: string | null;
+  assignee_id: string | null;
+}>;
+
 export async function createTask(
   projectId: string,
   categoryId: string | null,
   name: string,
+  details: NewTaskDetails = {},
 ) {
   const supabase = await client();
 
@@ -109,6 +204,7 @@ export async function createTask(
       name,
       created_by: user.user?.id,
       position,
+      ...details,
     })
     .select(
       "id, project_id, category_id, serial_no, name, description, priority, status_id, due_date, assignee_id, position, created_by, created_at, updated_at, estimate_minutes, recurrence, import_batch_id",
@@ -126,8 +222,49 @@ export async function createTask(
     projectId,
   });
 
+  // Same fan-out an assignment through updateTask would produce — a task
+  // created straight onto someone's plate has to reach them too.
+  if (details.assignee_id) {
+    void notifyNewAssignment(projectId, data.id, name, details.assignee_id);
+  }
+
   revalidatePath(`/projects/${projectId}`);
   return { data };
+}
+
+async function notifyNewAssignment(
+  projectId: string,
+  taskId: string,
+  taskName: string,
+  assigneeId: string,
+) {
+  const supabase = await client();
+  const [{ data: project }, { data: assignee }, who, leads] = await Promise.all([
+    supabase.from("projects").select("name").eq("id", projectId).maybeSingle(),
+    supabase.from("profiles").select("full_name").eq("id", assigneeId).maybeSingle(),
+    actor(),
+    projectLeads(projectId),
+  ]);
+  if (!project) return;
+
+  await notifyTaskAssigned({
+    assigneeId,
+    taskName,
+    projectName: project.name,
+    projectId,
+  });
+
+  await publishEvent({
+    projectId,
+    taskId,
+    actorId: who.id,
+    type: "assignment",
+    title: `${who.name ?? "Someone"} assigned "${taskName}" to ${
+      assignee?.full_name ?? "a team member"
+    }`,
+    body: `In ${project.name}.`,
+    recipientIds: [assigneeId, ...leads],
+  });
 }
 
 export type TaskPatch = Partial<{

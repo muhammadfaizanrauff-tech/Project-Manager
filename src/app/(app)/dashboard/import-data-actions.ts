@@ -38,8 +38,22 @@ export async function createProjectQuick(name: string) {
   return { data };
 }
 
+/** Same idempotence as `createCategory` in the project workspace: a name that
+ *  already exists comes back as-is rather than becoming a second category. */
 export async function createCategoryQuick(projectId: string, name: string) {
   const supabase = await createClient();
+  const trimmed = name.trim();
+  if (!trimmed) return { error: "Give the category a name." };
+
+  const { data: existing } = await supabase
+    .from("categories")
+    .select("id, name")
+    .eq("project_id", projectId)
+    .ilike("name", trimmed.replace(/[%_\\]/g, "\\$&"))
+    .limit(1)
+    .maybeSingle();
+  if (existing) return { data: existing };
+
   const { count } = await supabase
     .from("categories")
     .select("id", { count: "exact", head: true })
@@ -47,7 +61,7 @@ export async function createCategoryQuick(projectId: string, name: string) {
 
   const { data, error } = await supabase
     .from("categories")
-    .insert({ project_id: projectId, name, position: count ?? 0 })
+    .insert({ project_id: projectId, name: trimmed, position: count ?? 0 })
     .select("id, name")
     .single();
   if (error) return { error: error.message };
