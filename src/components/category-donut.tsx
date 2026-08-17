@@ -4,9 +4,9 @@ import { Cell, Pie, PieChart } from "recharts";
 import type { Status, TaskRecord } from "@/lib/tasks";
 
 const COLORS = {
-  done: "#16a34a",
-  progress: "#94a3b8",
-  blocked: "#ef4444",
+  done: "#448361",
+  progress: "#9b9b9b",
+  blocked: "#e03e3e",
 };
 
 export function CategoryDonut({

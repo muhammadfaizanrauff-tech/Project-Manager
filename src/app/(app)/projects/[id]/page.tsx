@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { Building2, CalendarDays, FolderKanban, ListChecks } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarGroup, AvatarImage } from "@/components/ui/avatar";
-import { Card } from "@/components/ui/card";
 import { FadeIn } from "@/components/motion/fade-in";
 import { HelpTip } from "@/components/help-tip";
 import { getCurrentProfile } from "@/lib/auth";
@@ -76,21 +75,21 @@ export default async function ProjectDetailPage({
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-6">
       <FadeIn>
-      <Card className="gap-4 rounded-2xl p-4 shadow-sm sm:p-5">
+      {/* A Notion page header, not a card: icon beside a large title, the
+          properties underneath in grey, and nothing boxing it in. */}
+      <header className="flex flex-col gap-4 border-b pb-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-            <Avatar className="size-12 shrink-0 rounded-xl sm:size-14" size="lg">
+            <Avatar className="size-11 shrink-0 rounded-md sm:size-12" size="lg">
               {project.logo_url && (
-                <AvatarImage src={project.logo_url} className="rounded-xl" />
+                <AvatarImage src={project.logo_url} className="rounded-md" />
               )}
-              <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent-foreground/70 text-primary-foreground">
-                <FolderKanban className="size-6" />
+              <AvatarFallback className="rounded-md bg-secondary text-muted-foreground">
+                <FolderKanban className="size-5" />
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <h1 className="text-lg font-semibold tracking-tight sm:text-xl">
-                {project.name}
-              </h1>
+              <h1 className="text-2xl font-bold sm:text-3xl">{project.name}</h1>
               <p className="text-sm text-muted-foreground">
                 {project.managers.length > 0
                   ? `Managed by ${project.managers
@@ -169,7 +168,7 @@ export default async function ProjectDetailPage({
             {project.members.length} member{project.members.length === 1 ? "" : "s"}
           </span>
         </div>
-      </Card>
+      </header>
       </FadeIn>
 
       <ProjectWorkspace

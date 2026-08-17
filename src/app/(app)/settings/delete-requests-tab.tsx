@@ -55,7 +55,7 @@ export function DeleteRequestsTab({ requests }: { requests: DeleteRequestRow[] }
         </>
       }
     >
-      <div className="flex flex-col gap-2 rounded-2xl border p-3">
+      <div className="flex flex-col gap-2 rounded-md border p-3">
       {list.map((request) => (
         <div
           key={request.id}

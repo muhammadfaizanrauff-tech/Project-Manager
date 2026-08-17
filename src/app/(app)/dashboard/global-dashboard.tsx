@@ -51,7 +51,7 @@ function Panel({
 }) {
   return (
     <FadeIn delay={delay} y={12} className={className}>
-      <Card className="h-full gap-3 rounded-2xl p-5 shadow-sm">
+      <Card className="h-full gap-3 rounded-md p-4 shadow-none">
         <div className="flex items-center justify-between gap-2">
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             {title}
@@ -86,23 +86,19 @@ function StatCard({
   topic?: string;
   delay?: number;
 }) {
-  const accent =
-    tone === "warning"
-      ? "from-red-500 to-orange-500"
-      : tone === "success"
-        ? "from-emerald-500 to-teal-500"
-        : "from-primary to-accent-foreground/60";
+  // The tone lives in the icon alone. The gradient bar that used to cap these
+  // cards was the loudest thing on the dashboard, and Notion has no such device
+  // — a number is allowed to just be a number.
   const iconTone =
     tone === "warning"
-      ? "text-red-500"
+      ? "text-[#d9730d]"
       : tone === "success"
-        ? "text-emerald-500"
+        ? "text-[#448361] dark:text-[#4dab9a]"
         : "text-primary";
 
   return (
     <FadeIn delay={delay} y={12}>
-      <Card className="relative gap-1.5 overflow-hidden rounded-2xl p-5 shadow-sm">
-        <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent}`} />
+      <Card className="gap-1.5 rounded-md p-4 shadow-none">
         <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Icon className={`size-3.5 ${iconTone}`} />
           {label}

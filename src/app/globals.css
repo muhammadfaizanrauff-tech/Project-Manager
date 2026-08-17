@@ -9,7 +9,9 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
-  --font-heading: var(--font-open-sans), ui-sans-serif, system-ui, sans-serif;
+  /* Notion sets one family for body and headings alike — headings are the same
+     face at a heavier weight and tighter tracking, not a second typeface. */
+  --font-heading: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,76 +50,83 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* "Citrus Pop" — warm daylight paper, bold coral primary against deep teal
-   and sky blue. Picked from the visual-direction preview; see CLAUDE.md
-   history / plan for the other 9 directions if this ever needs revisiting. */
+/* Notion. White paper, near-black ink (#37352f — warm, never pure black), one
+   blue accent (#2383e2) used only for what you can act on, and grey for
+   everything else. Values are Notion's own, kept as hex so they can be checked
+   against the product rather than reverse-engineered from oklch.
+   Two rules the tokens encode, and the reason the UI reads as Notion:
+   - `--accent` is a *grey*, not a colour. In shadcn it paints every hover, and
+     Notion's hovers are grey — a coloured hover is the fastest way to lose the
+     look. The blue lives in `--primary` (buttons, links, active input rings).
+   - `--radius` is 6px, so nothing rounds into a pill by default. */
 :root {
-  --background: oklch(0.985 0.015 75);
-  --foreground: oklch(0.24 0.02 55);
-  --card: oklch(0.997 0.006 75);
-  --card-foreground: oklch(0.24 0.02 55);
-  --popover: oklch(0.997 0.006 75);
-  --popover-foreground: oklch(0.24 0.02 55);
-  --primary: oklch(0.68 0.19 38);
-  --primary-foreground: oklch(0.99 0.01 60);
-  --secondary: oklch(0.94 0.03 70);
-  --secondary-foreground: oklch(0.32 0.03 55);
-  --muted: oklch(0.955 0.02 70);
-  --muted-foreground: oklch(0.52 0.025 60);
-  --accent: oklch(0.92 0.05 195);
-  --accent-foreground: oklch(0.32 0.09 195);
-  --destructive: oklch(0.55 0.19 30);
-  --border: oklch(0.89 0.025 70);
-  --input: oklch(0.89 0.025 70);
-  --ring: oklch(0.68 0.19 38 / 50%);
-  --chart-1: oklch(0.68 0.19 38);
-  --chart-2: oklch(0.56 0.11 200);
-  --chart-3: oklch(0.72 0.15 230);
-  --chart-4: oklch(0.78 0.16 80);
-  --chart-5: oklch(0.55 0.19 30);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.96 0.025 72);
-  --sidebar-foreground: oklch(0.24 0.02 55);
-  --sidebar-primary: oklch(0.68 0.19 38);
-  --sidebar-primary-foreground: oklch(0.99 0.01 60);
-  --sidebar-accent: oklch(0.92 0.05 195);
-  --sidebar-accent-foreground: oklch(0.32 0.09 195);
-  --sidebar-border: oklch(0.89 0.025 70);
-  --sidebar-ring: oklch(0.68 0.19 38 / 50%);
+  --background: #ffffff;
+  --foreground: #37352f;
+  --card: #ffffff;
+  --card-foreground: #37352f;
+  --popover: #ffffff;
+  --popover-foreground: #37352f;
+  --primary: #2383e2;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1ef;
+  --secondary-foreground: #37352f;
+  --muted: #f7f7f5;
+  --muted-foreground: #787774;
+  --accent: #efefee;
+  --accent-foreground: #37352f;
+  --destructive: #eb5757;
+  --border: #e9e9e7;
+  --input: #e0e0de;
+  --ring: rgb(35 131 226 / 40%);
+  /* Notion's tag palette, in the order a board tends to need them. */
+  --chart-1: #2383e2;
+  --chart-2: #d9730d;
+  --chart-3: #448361;
+  --chart-4: #6940a5;
+  --chart-5: #c14c8a;
+  --radius: 0.375rem;
+  --sidebar: #f7f7f5;
+  --sidebar-foreground: #37352f;
+  --sidebar-primary: #2383e2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8e8e6;
+  --sidebar-accent-foreground: #37352f;
+  --sidebar-border: #e9e9e7;
+  --sidebar-ring: rgb(35 131 226 / 40%);
 }
 
 .dark {
-  --background: oklch(0.17 0.02 50);
-  --foreground: oklch(0.96 0.02 75);
-  --card: oklch(0.22 0.02 50);
-  --card-foreground: oklch(0.96 0.02 75);
-  --popover: oklch(0.22 0.02 50);
-  --popover-foreground: oklch(0.96 0.02 75);
-  --primary: oklch(0.72 0.17 40);
-  --primary-foreground: oklch(0.15 0.02 50);
-  --secondary: oklch(0.28 0.02 55);
-  --secondary-foreground: oklch(0.93 0.02 70);
-  --muted: oklch(0.26 0.02 55);
-  --muted-foreground: oklch(0.68 0.03 60);
-  --accent: oklch(0.32 0.06 195);
-  --accent-foreground: oklch(0.9 0.05 195);
-  --destructive: oklch(0.68 0.18 35);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.72 0.17 40 / 50%);
-  --chart-1: oklch(0.72 0.17 40);
-  --chart-2: oklch(0.68 0.13 195);
-  --chart-3: oklch(0.75 0.15 230);
-  --chart-4: oklch(0.8 0.16 85);
-  --chart-5: oklch(0.7 0.18 30);
-  --sidebar: oklch(0.19 0.02 50);
-  --sidebar-foreground: oklch(0.96 0.02 75);
-  --sidebar-primary: oklch(0.72 0.17 40);
-  --sidebar-primary-foreground: oklch(0.15 0.02 50);
-  --sidebar-accent: oklch(0.32 0.06 195);
-  --sidebar-accent-foreground: oklch(0.9 0.05 195);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.72 0.17 40 / 50%);
+  --background: #191919;
+  --foreground: #d4d4d4;
+  --card: #202020;
+  --card-foreground: #d4d4d4;
+  --popover: #252525;
+  --popover-foreground: #d4d4d4;
+  --primary: #2383e2;
+  --primary-foreground: #ffffff;
+  --secondary: #2f2f2f;
+  --secondary-foreground: #d4d4d4;
+  --muted: #202020;
+  --muted-foreground: #9b9b9b;
+  --accent: #2f2f2f;
+  --accent-foreground: #ffffff;
+  --destructive: #ff7369;
+  --border: #2f2f2f;
+  --input: #373737;
+  --ring: rgb(35 131 226 / 45%);
+  --chart-1: #529cca;
+  --chart-2: #ffa344;
+  --chart-3: #4dab9a;
+  --chart-4: #9a6dd7;
+  --chart-5: #e255a1;
+  --sidebar: #202020;
+  --sidebar-foreground: #d4d4d4;
+  --sidebar-primary: #529cca;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2f2f2f;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2f2f2f;
+  --sidebar-ring: rgb(35 131 226 / 45%);
 }
 
 @layer base {
@@ -133,8 +142,11 @@
   ::selection {
     @apply bg-primary/25 text-foreground;
   }
+  /* Notion's headings: same face as the body, semibold, tracking pulled in
+     slightly. The weight is what separates them, not the typeface. */
   h1, h2, h3, h4 {
-    @apply font-heading;
+    @apply font-heading font-semibold;
+    letter-spacing: -0.011em;
   }
 
   ::-webkit-scrollbar {
@@ -156,18 +168,25 @@
   }
 }
 
+/* Notion is a flat interface: 1px hairlines and grey hovers do the work that
+   shadows and gradients do elsewhere. The utility names below are unchanged so
+   every existing caller keeps working — what each one *paints* is now Notion's
+   answer to it. The only shadows in the product are the two Notion actually
+   uses: a 1px lift on a raised card, and a real drop shadow on a floating
+   surface (menu, dragged card). */
 @layer utilities {
   .glass-panel {
-    @apply bg-card/70 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/60;
+    @apply bg-card;
   }
   .glass-surface {
-    @apply bg-background/75 backdrop-blur-xl backdrop-saturate-150;
+    @apply bg-background;
   }
+  /* Was a three-colour mesh; now the barely-there wash Notion puts behind its
+     marketing and sign-in pages — visible as light, not as colour. */
   .gradient-mesh {
     background-image:
-      radial-gradient(at 15% 0%, color-mix(in oklch, var(--primary) 18%, transparent) 0px, transparent 55%),
-      radial-gradient(at 85% 10%, color-mix(in oklch, var(--accent) 55%, transparent) 0px, transparent 50%),
-      radial-gradient(at 50% 100%, color-mix(in oklch, var(--primary) 10%, transparent) 0px, transparent 55%);
+      radial-gradient(at 20% 0%, color-mix(in srgb, var(--primary) 7%, transparent) 0px, transparent 55%),
+      radial-gradient(at 80% 5%, color-mix(in srgb, var(--muted-foreground) 6%, transparent) 0px, transparent 45%);
   }
   .gradient-border {
     position: relative;
@@ -180,18 +199,61 @@
     z-index: -1;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, color-mix(in oklch, var(--primary) 60%, transparent), color-mix(in oklch, var(--accent-foreground) 40%, transparent), transparent 70%);
+    background: var(--border);
     -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
   }
   .text-gradient {
-    background: linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 40%, var(--accent-foreground)));
+    background: linear-gradient(135deg, var(--primary), #9a6dd7);
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
   }
+  /* Notion's button shadow — a hairline lift, not a glow. */
   .shadow-glow {
-    box-shadow: 0 8px 30px -8px color-mix(in oklch, var(--primary) 45%, transparent);
+    box-shadow:
+      rgb(15 15 15 / 10%) 0 1px 2px,
+      rgb(15 15 15 / 6%) 0 2px 6px;
+  }
+  /* The one surface Notion does give real depth to: something lifted off the
+     page — a menu, or a card mid-drag. */
+  .notion-floating {
+    box-shadow:
+      rgb(15 15 15 / 5%) 0 0 0 1px,
+      rgb(15 15 15 / 10%) 0 3px 6px,
+      rgb(15 15 15 / 20%) 0 9px 24px;
+  }
+  /* A board card: raised at rest, floating while pointed at. The hover lives in
+     CSS rather than a `hover:` variant because these are hand-written classes,
+     not generated utilities — Tailwind can't prefix them. */
+  .notion-card {
+    box-shadow:
+      rgb(15 15 15 / 5%) 0 0 0 1px,
+      rgb(15 15 15 / 8%) 0 1px 2px;
+    transition: box-shadow 150ms ease;
+  }
+  .notion-card:hover {
+    box-shadow:
+      rgb(15 15 15 / 5%) 0 0 0 1px,
+      rgb(15 15 15 / 10%) 0 2px 4px,
+      rgb(15 15 15 / 12%) 0 4px 12px;
+  }
+  .dark .notion-card {
+    box-shadow:
+      rgb(255 255 255 / 8%) 0 0 0 1px,
+      rgb(0 0 0 / 30%) 0 1px 2px;
+  }
+  .dark .notion-card:hover {
+    box-shadow:
+      rgb(255 255 255 / 14%) 0 0 0 1px,
+      rgb(0 0 0 / 40%) 0 2px 6px,
+      rgb(0 0 0 / 40%) 0 4px 12px;
+  }
+  .dark .notion-floating {
+    box-shadow:
+      rgb(255 255 255 / 8%) 0 0 0 1px,
+      rgb(0 0 0 / 40%) 0 3px 6px,
+      rgb(0 0 0 / 50%) 0 9px 24px;
   }
 }

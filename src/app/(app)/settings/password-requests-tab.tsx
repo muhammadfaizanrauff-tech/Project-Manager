@@ -76,7 +76,7 @@ export function PasswordRequestsTab({ requests }: { requests: PasswordRequestRow
       title="Password requests"
       description="When someone changes their own password it waits here. Their old password keeps working until you approve."
     >
-      <div className="flex flex-col gap-2 rounded-2xl border p-3">
+      <div className="flex flex-col gap-2 rounded-md border p-3">
         {list.map((request) => (
           <div
             key={request.id}

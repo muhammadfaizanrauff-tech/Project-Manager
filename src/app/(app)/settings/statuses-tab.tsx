@@ -14,7 +14,7 @@ type StatusRow = { id: string; label: string; color: string; position: number };
 export function StatusesTab({ statuses }: { statuses: StatusRow[] }) {
   const [list, setList] = useState(statuses);
   const [label, setLabel] = useState("");
-  const [color, setColor] = useState("#6366f1");
+  const [color, setColor] = useState("#2383e2");
   const [pending, startTransition] = useTransition();
 
   function handleAdd() {
@@ -52,7 +52,7 @@ export function StatusesTab({ statuses }: { statuses: StatusRow[] }) {
         </>
       }
     >
-      <div className="flex flex-col gap-2 rounded-2xl border p-3">
+      <div className="flex flex-col gap-2 rounded-md border p-3">
         {list.map((status) => (
           <div key={status.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted">
             <span

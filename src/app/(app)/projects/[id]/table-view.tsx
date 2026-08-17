@@ -52,7 +52,7 @@ import { ALL_COLUMNS, TableToolbar, type ColumnKey, type TaskFilters } from "./t
 const UNCATEGORIZED = { id: "__none__", name: "Uncategorized" };
 const DEFAULT_FILTERS: TaskFilters = { priorities: [], statusIds: [], importBatchId: null };
 
-const CATEGORY_ACCENTS = ["#6366f1", "#ec4899", "#0ea5e9", "#f59e0b", "#22c55e", "#a855f7"];
+const CATEGORY_ACCENTS = ["#2383e2", "#d9730d", "#448361", "#6940a5", "#c14c8a", "#0f7b6c"];
 
 function accentFor(id: string) {
   let hash = 0;
@@ -63,10 +63,12 @@ function accentFor(id: string) {
 type TaskPatch = Parameters<typeof updateTask>[2];
 
 // A finished task stays on the list — you still want to see what got done —
-// but it steps back visually: a light green wash and dimmed text, so the eye
-// lands on the work that's still open above it.
+// but it steps back visually so the eye lands on the work that's still open
+// above it. It steps back in grey rather than the green wash it used to use:
+// Notion never colours a row, only the tag inside it, and the row's own Status
+// tag already says "Done" in green.
 const DONE_ROW_CLASS =
-  "bg-green-50 text-muted-foreground opacity-70 hover:bg-green-100/70 dark:bg-green-500/10 dark:hover:bg-green-500/15";
+  "bg-muted text-muted-foreground opacity-70 hover:bg-accent";
 
 // Every row mounts a checkbox, two dropdowns and a date input, so a project
 // with a few hundred tasks has well over a thousand interactive components on
@@ -106,8 +108,8 @@ const TaskRow = memo(function TaskRow({
   return (
     <tr
       className={`border-b last:border-0 transition-colors ${
-        isDone ? DONE_ROW_CLASS : "hover:bg-primary/[0.04]"
-      } ${isSelected ? "bg-primary/[0.06]" : ""}`}
+        isDone ? DONE_ROW_CLASS : "hover:bg-accent/60"
+      } ${isSelected ? "bg-accent" : ""}`}
     >
       <td className="px-3 py-2">
         <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(task.id)} />
@@ -234,7 +236,7 @@ const TaskCard = memo(function TaskCard({
     <div
       className={`flex flex-col gap-2 border-b p-3 last:border-0 ${
         isDone ? DONE_ROW_CLASS : ""
-      } ${isSelected ? "bg-primary/[0.06]" : ""}`}
+      } ${isSelected ? "bg-accent" : ""}`}
     >
       <div className="flex items-start gap-2.5">
         <span className="flex size-8 shrink-0 items-center justify-center">
@@ -699,7 +701,7 @@ export function TableView({
                   ? { borderLeft: `3px solid ${accentFor(category.id)}` }
                   : undefined
               }
-              className="min-w-0 overflow-hidden rounded-2xl border bg-card shadow-sm"
+              className="min-w-0 overflow-hidden rounded-md border bg-card shadow-sm"
             >
               {/* A row rather than one big button: renaming puts a text input
                   in here, and an input nested inside a <button> can't be typed
@@ -1006,7 +1008,7 @@ export function TableView({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="fixed inset-x-3 bottom-3 z-30 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] flex-wrap items-center justify-center gap-2 rounded-2xl border bg-popover px-3 py-2.5 shadow-lg sm:inset-x-0 sm:bottom-4 sm:px-4"
+            className="fixed inset-x-3 bottom-3 z-30 mx-auto flex w-fit max-w-[calc(100%-1.5rem)] flex-wrap items-center justify-center gap-2 rounded-md border bg-popover px-3 py-2.5 shadow-lg sm:inset-x-0 sm:bottom-4 sm:px-4"
           >
             <span className="flex items-center gap-1.5 text-sm font-medium">
               <CheckSquare className="size-4 text-primary" />

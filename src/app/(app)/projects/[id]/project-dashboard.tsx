@@ -22,9 +22,9 @@ import { PRIORITY_STYLES } from "@/components/task-chips";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: "#ef4444",
-  medium: "#eab308",
-  low: "#22c55e",
+  high: "#e03e3e",
+  medium: "#d9730d",
+  low: "#448361",
 };
 
 export function ProjectDashboard({
@@ -105,7 +105,7 @@ export function ProjectDashboard({
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <FadeIn y={12}>
-        <Card className="flex h-full flex-col items-center justify-center gap-2 rounded-2xl p-5 shadow-sm">
+        <Card className="flex h-full flex-col items-center justify-center gap-2 rounded-md p-4 shadow-none">
           <p className="text-xs font-medium text-muted-foreground">Completion</p>
           <div className="relative flex size-24 items-center justify-center">
             <PieChart width={96} height={96}>
@@ -133,7 +133,7 @@ export function ProjectDashboard({
       </FadeIn>
 
       <FadeIn delay={0.05} y={12}>
-        <Card className="h-full gap-3 rounded-2xl p-5 shadow-sm">
+        <Card className="h-full gap-3 rounded-md p-4 shadow-none">
           <p className="text-xs font-medium text-muted-foreground">Status breakdown</p>
           <div className="flex flex-col gap-2">
             {statusCounts.length === 0 && (
@@ -154,7 +154,7 @@ export function ProjectDashboard({
       </FadeIn>
 
       <FadeIn delay={0.1} y={12}>
-        <Card className="h-full gap-3 rounded-2xl p-5 shadow-sm">
+        <Card className="h-full gap-3 rounded-md p-4 shadow-none">
           <p className="text-xs font-medium text-muted-foreground">Priority breakdown</p>
           <div className="flex items-center justify-center">
             <PieChart width={140} height={140}>
@@ -188,7 +188,7 @@ export function ProjectDashboard({
       </FadeIn>
 
       <FadeIn delay={0.15} y={12} className="md:col-span-2">
-        <Card className="gap-3 rounded-2xl p-5 shadow-sm">
+        <Card className="gap-3 rounded-md p-4 shadow-none">
           <p className="text-xs font-medium text-muted-foreground">Tasks by assignee</p>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={byAssignee}>
@@ -209,7 +209,7 @@ export function ProjectDashboard({
       </FadeIn>
 
       <FadeIn delay={0.2} y={12}>
-        <Card className="h-full gap-3 rounded-2xl p-5 shadow-sm">
+        <Card className="h-full gap-3 rounded-md p-4 shadow-none">
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <AlertTriangle className="size-3.5 text-red-500" />
             Overdue ({overdue.length})
@@ -232,7 +232,7 @@ export function ProjectDashboard({
       </FadeIn>
 
       <FadeIn delay={0.25} y={12}>
-        <Card className="h-full gap-3 rounded-2xl p-5 shadow-sm">
+        <Card className="h-full gap-3 rounded-md p-4 shadow-none">
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <CalendarClock className="size-3.5" />
             Upcoming (7 days)

@@ -15,7 +15,7 @@ import type { DependencyRef, Label } from "@/lib/task-extras";
 import type { TaskRecord } from "@/lib/tasks";
 import { addDependency, createLabel, removeDependency, setTaskLabel } from "./task-extras-actions";
 
-const LABEL_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#22c55e", "#0ea5e9", "#ef4444"];
+const LABEL_COLORS = ["#2383e2", "#d9730d", "#dfab01", "#448361", "#6940a5", "#e03e3e"];
 
 export function TaskLinks({
   projectId,

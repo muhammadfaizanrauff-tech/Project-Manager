@@ -111,7 +111,7 @@ export function NotificationList({ notifications }: { notifications: Notificatio
       </div>
 
       {shown.length === 0 ? (
-        <Card className="flex flex-col items-center justify-center gap-3 rounded-2xl border-dashed py-16 text-center">
+        <Card className="flex flex-col items-center justify-center gap-3 rounded-md border-dashed py-16 text-center">
           {tab === "unread" && items.length > 0 ? (
             <>
               <CheckCheck className="size-8 text-emerald-500" />
@@ -141,7 +141,7 @@ export function NotificationList({ notifications }: { notifications: Notificatio
               <button
                 key={n.id}
                 onClick={() => open(n)}
-                className={`group flex w-full items-start gap-3 rounded-2xl border p-4 text-left transition-all hover:border-primary/40 hover:bg-primary/[0.03] ${
+                className={`group flex w-full items-start gap-3 rounded-md border p-4 text-left transition-all hover:border-primary/40 hover:bg-primary/[0.03] ${
                   isUnread ? "border-primary/25 bg-primary/[0.04]" : "bg-card"
                 }`}
               >

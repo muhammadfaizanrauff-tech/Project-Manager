@@ -85,7 +85,7 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 rounded-2xl border-dashed py-12 text-center">
+        <Card className="flex flex-col items-center gap-2 rounded-md border-dashed py-12 text-center">
           <FileUp className="size-8 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">
             {batches.length === 0
@@ -98,7 +98,7 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
         {/* Mobile: one card per import, so nothing hides behind a sideways scroll. */}
         <div className="flex flex-col gap-3 md:hidden">
           {filtered.map((batch) => (
-            <div key={batch.id} className="flex flex-col gap-2 rounded-2xl border p-3.5">
+            <div key={batch.id} className="flex flex-col gap-2 rounded-md border p-3.5">
               <div className="flex items-start gap-2">
                 <FileUp className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
@@ -153,7 +153,7 @@ export function ImportsTab({ batches }: { batches: ImportBatch[] }) {
           ))}
         </div>
 
-        <div className="hidden overflow-x-auto rounded-2xl border md:block">
+        <div className="hidden overflow-x-auto rounded-md border md:block">
           <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
               <tr>

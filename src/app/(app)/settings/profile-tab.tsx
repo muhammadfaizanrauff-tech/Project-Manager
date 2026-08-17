@@ -37,7 +37,7 @@ export function ProfileTab({
       title="Your profile"
       description="Your name as everyone else sees it, and the password you sign in with."
     >
-      <Card className="gap-4 rounded-2xl p-5 shadow-sm">
+      <Card className="gap-4 rounded-md p-4 shadow-none">
         <div className="flex flex-col gap-1.5">
           <Label>Email</Label>
           <Input value={email} disabled />
@@ -55,7 +55,7 @@ export function ProfileTab({
         </div>
       </Card>
 
-      <Card className="gap-3 rounded-2xl p-5 shadow-sm">
+      <Card className="gap-3 rounded-md p-4 shadow-none">
         <Button
           variant="outline"
           size="sm"

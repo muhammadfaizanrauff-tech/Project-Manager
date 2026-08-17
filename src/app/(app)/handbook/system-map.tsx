@@ -7,7 +7,7 @@
  */
 export function SystemMap() {
   return (
-    <div className="overflow-x-auto rounded-2xl border bg-card p-4">
+    <div className="overflow-x-auto rounded-md border bg-card p-4">
       <svg
         viewBox="0 0 760 470"
         role="img"

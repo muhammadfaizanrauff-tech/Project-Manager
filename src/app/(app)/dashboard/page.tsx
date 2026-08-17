@@ -52,7 +52,7 @@ export default async function DashboardPage() {
       </div>
 
       {data.totalProjects === 0 ? (
-        <Card className="flex flex-col items-center justify-center gap-3 rounded-2xl border-dashed py-16 text-center">
+        <Card className="flex flex-col items-center justify-center gap-3 rounded-md border-dashed py-16 text-center">
           <EmptyIllustration className="h-28 w-auto" />
           <p className="max-w-sm text-sm text-muted-foreground">
             {canImport

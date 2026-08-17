@@ -607,7 +607,7 @@ export function UsersTab({
           const isSelf = user.id === currentUserId;
 
           return (
-            <div key={user.id} className="flex flex-col gap-2.5 rounded-2xl border p-3.5">
+            <div key={user.id} className="flex flex-col gap-2.5 rounded-md border p-3.5">
               <div className="flex items-start gap-2.5">
                 <Avatar className="size-9 shrink-0">
                   {user.avatar_url && <AvatarImage src={user.avatar_url} />}
@@ -677,7 +677,7 @@ export function UsersTab({
           );
         })}
         {list.length === 0 && (
-          <p className="rounded-2xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
             {role === "manager"
               ? "Nobody in your organizations yet. Ask the Admin to add you to one, or create a user above."
               : "No users yet."}
@@ -685,7 +685,7 @@ export function UsersTab({
         )}
       </div>
 
-      <div className="hidden overflow-x-auto rounded-2xl border md:block">
+      <div className="hidden overflow-x-auto rounded-md border md:block">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
             <tr>

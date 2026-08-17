@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useMemo,
   useState,
   useTransition,
   type Dispatch,
@@ -25,13 +26,17 @@ import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { CalendarDays, MessageSquare, Plus } from "lucide-react";
 
-import { PriorityChip, StatusChip } from "@/components/task-chips";
+import { PriorityChip } from "@/components/task-chips";
 import { upsertById } from "@/lib/utils";
 import type { CategoryRecord, Status, TaskRecord } from "@/lib/tasks";
 import { createTask, updateTask } from "./task-actions";
 
-const UNCATEGORIZED = { id: "__none__", name: "Uncategorized" };
-const CATEGORY_ACCENTS = ["#6366f1", "#ec4899", "#0ea5e9", "#f59e0b", "#22c55e", "#a855f7"];
+/** Stand-in ids for "this task has no category" / "no status yet", so both can
+ *  be a real column or section instead of a special case in every branch. */
+const NO_CATEGORY = "__none__";
+const NO_STATUS = "__nostatus__";
+
+const CATEGORY_ACCENTS = ["#2383e2", "#d9730d", "#448361", "#6940a5", "#c14c8a", "#0f7b6c"];
 
 function accentFor(id: string) {
   let hash = 0;
@@ -39,14 +44,43 @@ function accentFor(id: string) {
   return CATEGORY_ACCENTS[hash % CATEGORY_ACCENTS.length];
 }
 
+/** Droppable ids are addresses: a card lands on a task, on a category section,
+ *  or on the bare column, and each of those has to resolve to the same pair of
+ *  (status, category) that the drop should write. Encoding the pair into the id
+ *  keeps that resolution in one function (`resolveTarget`) instead of three. */
+function columnId(statusKey: string) {
+  return `col::${statusKey}`;
+}
+function sectionId(statusKey: string, categoryKey: string) {
+  return `sec::${statusKey}::${categoryKey}`;
+}
+
+type Target = { statusKey: string; categoryKey: string };
+
+function parseDroppableId(id: string): Target | null {
+  if (id.startsWith("sec::")) {
+    const [, statusKey, categoryKey] = id.split("::");
+    return { statusKey, categoryKey };
+  }
+  if (id.startsWith("col::")) {
+    return { statusKey: id.slice("col::".length), categoryKey: "" };
+  }
+  return null;
+}
+
+function keysOf(task: TaskRecord): Target {
+  return {
+    statusKey: task.status_id ?? NO_STATUS,
+    categoryKey: task.category_id ?? NO_CATEGORY,
+  };
+}
+
 function TaskCard({
   task,
-  statuses,
   commentCount,
   onOpen,
 }: {
   task: TaskRecord;
-  statuses: Status[];
   commentCount: number;
   onOpen: () => void;
 }) {
@@ -59,8 +93,6 @@ function TaskCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const status = statuses.find((s) => s.id === task.status_id);
-
   return (
     <div
       ref={setNodeRef}
@@ -68,80 +100,132 @@ function TaskCard({
       {...attributes}
       {...listeners}
       onClick={onOpen}
-      className="flex cursor-grab flex-col gap-2 rounded-xl border bg-card p-3 text-sm shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-primary/20 active:cursor-grabbing"
+      // A Notion board card: white, hairline, 6px corners, and a 1px lift that
+      // deepens on hover. No colour until a property needs one.
+      className="notion-card flex cursor-grab flex-col gap-2 rounded-md bg-card p-2.5 text-sm active:cursor-grabbing"
     >
-      <p className="font-medium leading-snug">{task.name}</p>
-      <div className="flex flex-wrap items-center gap-1.5">
+      <p className="font-medium leading-snug text-card-foreground">{task.name}</p>
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <PriorityChip priority={task.priority} />
-        <StatusChip status={status} />
-      </div>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <CalendarDays className="size-3.5" />
-          {task.due_date
-            ? new Date(task.due_date).toLocaleDateString("en-US", {
+        <span className="flex items-center gap-2">
+          {commentCount > 0 && (
+            <span className="flex items-center gap-1">
+              <MessageSquare className="size-3.5" />
+              {commentCount}
+            </span>
+          )}
+          {task.due_date && (
+            <span className="flex items-center gap-1">
+              <CalendarDays className="size-3.5" />
+              {new Date(task.due_date).toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
-              })
-            : "No date"}
+              })}
+            </span>
+          )}
         </span>
-        {commentCount > 0 && (
-          <span className="flex items-center gap-1">
-            <MessageSquare className="size-3.5" />
-            {commentCount}
-          </span>
-        )}
       </div>
     </div>
   );
 }
 
-function Column({
-  category,
-  tasks,
-  statuses,
-  commentCounts,
-  onOpen,
-  newTaskName,
-  onNewTaskNameChange,
-  onAddTask,
+/** "+ New" that becomes the task name field in place. Kept quiet until the
+ *  column is hovered, the way Notion's is — except on touch, where there is no
+ *  hover to reveal it with. */
+function AddTaskRow({
+  placeholder,
+  draft,
+  onDraftChange,
+  onAdd,
 }: {
-  category: CategoryRecord;
-  tasks: TaskRecord[];
-  statuses: Status[];
-  commentCounts: Record<string, number>;
-  onOpen: (task: TaskRecord) => void;
-  newTaskName: string;
-  onNewTaskNameChange: (value: string) => void;
-  onAddTask: () => void;
+  placeholder: string;
+  draft: string | null;
+  onDraftChange: (value: string | null) => void;
+  onAdd: () => void;
 }) {
-  const { setNodeRef } = useDroppable({ id: category.id });
+  if (draft === null) {
+    return (
+      <button
+        type="button"
+        onClick={() => onDraftChange("")}
+        className="flex items-center gap-1 rounded-sm px-0.5 py-1 text-xs text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground sm:opacity-0 sm:focus-visible:opacity-100 sm:group-hover/column:opacity-100"
+      >
+        <Plus className="size-3.5" />
+        New
+      </button>
+    );
+  }
 
   return (
-    <div className="flex w-[80vw] max-w-72 shrink-0 flex-col gap-3 rounded-2xl border border-border/60 bg-muted/30 p-3 sm:w-72">
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <span
-            className="size-2 rounded-full"
-            style={{
-              backgroundColor:
-                category.id === UNCATEGORIZED.id ? "var(--muted-foreground)" : accentFor(category.id),
-            }}
-          />
-          <h3 className="text-sm font-semibold">{category.name}</h3>
-        </div>
-        <span className="rounded-full bg-background px-1.5 py-0.5 text-xs text-muted-foreground shadow-sm">
-          {tasks.length}
+    <input
+      autoFocus
+      value={draft}
+      onChange={(e) => onDraftChange(e.target.value)}
+      onBlur={() => (draft.trim() ? onAdd() : onDraftChange(null))}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onAdd();
+        if (e.key === "Escape") onDraftChange(null);
+      }}
+      placeholder={placeholder}
+      className="notion-card rounded-md bg-card px-2.5 py-2 text-sm outline-none placeholder:text-muted-foreground focus:ring-2 focus:ring-ring"
+    />
+  );
+}
+
+/** One category inside one status column — the "Design · 1" band the board is
+ *  grouped by. It is its own droppable so dropping here writes *both* the
+ *  column's status and this category, which is how a card moves sideways
+ *  between categories without leaving the status it's in. */
+function CategorySection({
+  statusKey,
+  category,
+  tasks,
+  commentCounts,
+  onOpen,
+  draft,
+  onDraftChange,
+  onAdd,
+}: {
+  statusKey: string;
+  category: { id: string; name: string };
+  tasks: TaskRecord[];
+  commentCounts: Record<string, number>;
+  onOpen: (task: TaskRecord) => void;
+  draft: string | null;
+  onDraftChange: (value: string | null) => void;
+  onAdd: () => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: sectionId(statusKey, category.id),
+  });
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5 px-0.5">
+        <span
+          className="size-1.5 shrink-0 rounded-full"
+          style={{
+            backgroundColor:
+              category.id === NO_CATEGORY ? "var(--muted-foreground)" : accentFor(category.id),
+          }}
+        />
+        <span className="truncate text-xs font-medium text-muted-foreground">
+          {category.name}
         </span>
+        <span className="text-xs text-muted-foreground/70">{tasks.length}</span>
       </div>
 
-      <div ref={setNodeRef} className="flex min-h-8 flex-col gap-2">
+      <div
+        ref={setNodeRef}
+        className={`flex min-h-6 flex-col gap-1.5 rounded-md transition-colors ${
+          isOver ? "bg-accent/70" : ""
+        }`}
+      >
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <TaskCard
               key={task.id}
               task={task}
-              statuses={statuses}
               commentCount={commentCounts[task.id] ?? 0}
               onOpen={() => onOpen(task)}
             />
@@ -149,17 +233,92 @@ function Column({
         </SortableContext>
       </div>
 
-      <div className="flex items-center gap-1.5 px-1">
-        <Plus className="size-3.5 text-muted-foreground" />
-        <input
-          value={newTaskName}
-          onChange={(e) => onNewTaskNameChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onAddTask();
-          }}
-          placeholder="Add task"
-          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+      <AddTaskRow
+        placeholder={`New task in ${category.name}`}
+        draft={draft}
+        onDraftChange={onDraftChange}
+        onAdd={onAdd}
+      />
+    </div>
+  );
+}
+
+function StatusColumn({
+  statusKey,
+  label,
+  color,
+  sections,
+  count,
+  commentCounts,
+  onOpen,
+  drafts,
+  onDraftChange,
+  onAdd,
+}: {
+  statusKey: string;
+  label: string;
+  color: string | null;
+  sections: { category: { id: string; name: string }; tasks: TaskRecord[] }[];
+  count: number;
+  commentCounts: Record<string, number>;
+  onOpen: (task: TaskRecord) => void;
+  /** Keyed by category id, already narrowed to this column by the parent. */
+  drafts: Record<string, string>;
+  onDraftChange: (categoryKey: string, value: string | null) => void;
+  onAdd: (categoryKey: string) => void;
+}) {
+  // The column itself accepts a drop too, for the empty-column case and for the
+  // gap under the last section. `categoryKey: ""` there means "keep whatever
+  // category the card already had" — only the status changes.
+  const { setNodeRef, isOver } = useDroppable({ id: columnId(statusKey) });
+
+  return (
+    <div className="group/column flex w-[78vw] max-w-[17rem] shrink-0 flex-col gap-2 sm:w-[17rem]">
+      <div className="flex items-center gap-2 px-0.5">
+        <span
+          className="size-2 shrink-0 rounded-full"
+          style={{ backgroundColor: color ?? "var(--muted-foreground)" }}
         />
+        <h3 className="truncate text-sm font-semibold">{label}</h3>
+        <span className="text-xs text-muted-foreground">{count}</span>
+      </div>
+
+      <div
+        ref={setNodeRef}
+        className={`flex flex-1 flex-col gap-4 rounded-md p-1.5 transition-colors ${
+          isOver ? "bg-accent/50" : "bg-muted/50"
+        }`}
+      >
+        {sections.map(({ category, tasks }) => (
+          <CategorySection
+            key={category.id}
+            statusKey={statusKey}
+            category={category}
+            tasks={tasks}
+            commentCounts={commentCounts}
+            onOpen={onOpen}
+            draft={drafts[category.id] ?? null}
+            onDraftChange={(value) => onDraftChange(category.id, value)}
+            onAdd={() => onAdd(category.id)}
+          />
+        ))}
+
+        {/* Nothing at this stage yet, so there's no category band to hang an
+            add row off. Typing here files the task under Uncategorized — said
+            plainly in the placeholder rather than guessing a category. */}
+        {sections.length === 0 && (
+          <div className="flex flex-col gap-1.5">
+            <p className="px-1 pt-2 text-xs text-muted-foreground/70">
+              Drag tasks here, or add one.
+            </p>
+            <AddTaskRow
+              placeholder="New task in Uncategorized"
+              draft={drafts[NO_CATEGORY] ?? null}
+              onDraftChange={(value) => onDraftChange(NO_CATEGORY, value)}
+              onAdd={() => onAdd(NO_CATEGORY)}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -185,19 +344,82 @@ export function KanbanView({
   onOpenTask: (task: TaskRecord) => void;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [newTaskName, setNewTaskName] = useState<Record<string, string>>({});
+  // Keyed "<statusKey>::<categoryKey>" — a draft belongs to the one section it
+  // was opened in, so two open inputs on the board don't share a value.
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [, startTransition] = useTransition();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
-  const columns = [...categories, UNCATEGORIZED as CategoryRecord];
+  /**
+   * The board is grouped by status first and category second: columns are the
+   * stages (To Do → In Progress → Done), and inside a stage each category that
+   * has work at that stage gets its own titled band. A category with three
+   * tasks, one finished, therefore appears in two columns — twice under its own
+   * name — rather than as a column of its own with the finished task buried in it.
+   *
+   * Only categories that actually have tasks in a column get a band, so a
+   * fifteen-category project doesn't render fifteen empty headings per stage.
+   * "No status" is the same deal: it's only a column when something is in it.
+   */
+  const columns = useMemo(() => {
+    const ordered = [...categories].sort((a, b) => a.position - b.position);
+    const categoryOrder = [
+      ...ordered.map((c) => ({ id: c.id, name: c.name })),
+      { id: NO_CATEGORY, name: "Uncategorized" },
+    ];
 
-  function tasksFor(categoryId: string) {
+    const byStatus = new Map<string, Map<string, TaskRecord[]>>();
+    for (const task of tasks) {
+      const { statusKey, categoryKey } = keysOf(task);
+      let inStatus = byStatus.get(statusKey);
+      if (!inStatus) byStatus.set(statusKey, (inStatus = new Map()));
+      const bucket = inStatus.get(categoryKey);
+      if (bucket) bucket.push(task);
+      else inStatus.set(categoryKey, [task]);
+    }
+
+    const build = (statusKey: string, label: string, color: string | null) => {
+      const inStatus = byStatus.get(statusKey);
+      const sections = categoryOrder
+        .map((category) => ({
+          category,
+          // Positions are per-category in the database, so two tasks in the
+          // same category but different statuses can share one — serial_no is
+          // the tiebreak that keeps the order stable between renders.
+          tasks: [...(inStatus?.get(category.id) ?? [])].sort(
+            (a, b) => a.position - b.position || a.serial_no - b.serial_no,
+          ),
+        }))
+        .filter((section) => section.tasks.length > 0);
+
+      return {
+        statusKey,
+        label,
+        color,
+        sections,
+        count: sections.reduce((sum, s) => sum + s.tasks.length, 0),
+      };
+    };
+
+    const result = [...statuses]
+      .sort((a, b) => a.position - b.position)
+      .map((status) => build(status.id, status.label, status.color));
+
+    if (byStatus.has(NO_STATUS)) result.push(build(NO_STATUS, "No status", null));
+
+    return result;
+  }, [categories, tasks, statuses]);
+
+  function tasksIn(statusKey: string, categoryKey: string) {
     return tasks
-      .filter((t) => (t.category_id ?? UNCATEGORIZED.id) === categoryId)
-      .sort((a, b) => a.position - b.position);
+      .filter((t) => {
+        const keys = keysOf(t);
+        return keys.statusKey === statusKey && keys.categoryKey === categoryKey;
+      })
+      .sort((a, b) => a.position - b.position || a.serial_no - b.serial_no);
   }
 
   function handleDragStart(event: DragStartEvent) {
@@ -212,51 +434,85 @@ export function KanbanView({
     const activeTask = tasks.find((t) => t.id === active.id);
     if (!activeTask) return;
 
-    const overTask = tasks.find((t) => t.id === over.id);
-    const targetCategoryId = overTask
-      ? overTask.category_id ?? UNCATEGORIZED.id
-      : String(over.id);
+    const overId = String(over.id);
+    const overTask = tasks.find((t) => t.id === overId);
+    const target = overTask ? keysOf(overTask) : parseDroppableId(overId);
+    if (!target) return;
 
-    if (!columns.some((c) => c.id === targetCategoryId)) return;
+    // Dropping on bare column space keeps the card's category and only moves it
+    // between stages — the common case, and the one the user asks for by name.
+    const statusKey = target.statusKey;
+    const categoryKey = target.categoryKey || keysOf(activeTask).categoryKey;
+    if (statusKey !== NO_STATUS && !statuses.some((s) => s.id === statusKey)) return;
 
-    const destTasks = tasksFor(targetCategoryId).filter((t) => t.id !== activeTask.id);
-    const overIndex = overTask ? destTasks.findIndex((t) => t.id === overTask.id) : destTasks.length;
-    const insertAt = overIndex === -1 ? destTasks.length : overIndex;
-    destTasks.splice(insertAt, 0, activeTask);
+    const destination = tasksIn(statusKey, categoryKey).filter((t) => t.id !== activeTask.id);
+    const overIndex = overTask ? destination.findIndex((t) => t.id === overTask.id) : -1;
+    const insertAt = overIndex === -1 ? destination.length : overIndex;
+    destination.splice(insertAt, 0, activeTask);
 
-    const updatedDest = destTasks.map((t, i) => ({
+    const patched = destination.map((t, i) => ({
       ...t,
-      category_id: targetCategoryId === UNCATEGORIZED.id ? null : targetCategoryId,
+      status_id: statusKey === NO_STATUS ? null : statusKey,
+      category_id: categoryKey === NO_CATEGORY ? null : categoryKey,
       position: i,
     }));
 
-    const otherTasks = tasks.filter(
-      (t) =>
-        t.id !== activeTask.id &&
-        (t.category_id ?? UNCATEGORIZED.id) !== targetCategoryId,
-    );
+    const untouched = tasks.filter((t) => {
+      if (t.id === activeTask.id) return false;
+      const keys = keysOf(t);
+      return !(keys.statusKey === statusKey && keys.categoryKey === categoryKey);
+    });
 
-    const nextTasks = [...otherTasks, ...updatedDest];
-    onTasksChange(nextTasks);
+    onTasksChange([...untouched, ...patched]);
 
-    const moved = updatedDest.find((t) => t.id === activeTask.id)!;
+    const moved = patched.find((t) => t.id === activeTask.id)!;
     startTransition(() => {
       updateTask(projectId, moved.id, {
+        status_id: moved.status_id,
         category_id: moved.category_id,
         position: moved.position,
       });
     });
   }
 
-  function handleAddTask(categoryId: string) {
-    const name = (newTaskName[categoryId] ?? "").trim();
-    if (!name) return;
-    setNewTaskName((prev) => ({ ...prev, [categoryId]: "" }));
+  /** The drafts for one column, re-keyed by category id for the column to use. */
+  function draftsFor(statusKey: string) {
+    const prefix = `${statusKey}::`;
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(drafts)) {
+      if (key.startsWith(prefix)) out[key.slice(prefix.length)] = value;
+    }
+    return out;
+  }
+
+  function setDraft(statusKey: string, categoryKey: string, value: string | null) {
+    const key = `${statusKey}::${categoryKey}`;
+    setDrafts((prev) => {
+      if (value === null) {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      return { ...prev, [key]: value };
+    });
+  }
+
+  function handleAddTask(statusKey: string, categoryKey: string) {
+    const key = `${statusKey}::${categoryKey}`;
+    const name = (drafts[key] ?? "").trim();
+    if (!name) {
+      setDraft(statusKey, categoryKey, null);
+      return;
+    }
+    // The input stays open and empty so a stage can be filled in one sitting.
+    setDrafts((prev) => ({ ...prev, [key]: "" }));
     startTransition(async () => {
       const result = await createTask(
         projectId,
-        categoryId === UNCATEGORIZED.id ? null : categoryId,
+        categoryKey === NO_CATEGORY ? null : categoryKey,
         name,
+        // Created where it was typed: a task added under Done is done.
+        { status_id: statusKey === NO_STATUS ? null : statusKey },
       );
       // Functional, not [...tasks, …]: the closure captured `tasks` before the
       // await, so a Realtime update landing in between would be dropped.
@@ -273,30 +529,31 @@ export function KanbanView({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((category) => (
-          <Column
-            key={category.id}
-            category={category}
-            tasks={tasksFor(category.id)}
-            statuses={statuses}
+      <div className="flex items-start gap-3 overflow-x-auto pb-4">
+        {columns.map((column) => (
+          <StatusColumn
+            key={column.statusKey}
+            statusKey={column.statusKey}
+            label={column.label}
+            color={column.color}
+            sections={column.sections}
+            count={column.count}
             commentCounts={commentCounts}
             onOpen={onOpenTask}
-            newTaskName={newTaskName[category.id] ?? ""}
-            onNewTaskNameChange={(value) =>
-              setNewTaskName((prev) => ({ ...prev, [category.id]: value }))
+            drafts={draftsFor(column.statusKey)}
+            onDraftChange={(categoryKey, value) =>
+              setDraft(column.statusKey, categoryKey, value)
             }
-            onAddTask={() => handleAddTask(category.id)}
+            onAdd={(categoryKey) => handleAddTask(column.statusKey, categoryKey)}
           />
         ))}
       </div>
 
       <DragOverlay>
         {activeTask && (
-          <div className="rotate-2 scale-105 shadow-xl">
+          <div className="notion-floating rounded-md">
             <TaskCard
               task={activeTask}
-              statuses={statuses}
               commentCount={commentCounts[activeTask.id] ?? 0}
               onOpen={() => {}}
             />

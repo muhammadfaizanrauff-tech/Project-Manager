@@ -50,7 +50,7 @@ export function MeetingLinksTab({
           : "Shared links to your team's recurring calls. Your Admin or Manager keeps this list."
       }
     >
-      <div className="flex flex-col gap-2 rounded-2xl border p-3">
+      <div className="flex flex-col gap-2 rounded-md border p-3">
         {list.map((link) => (
           <div key={link.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted">
             <Video className="size-4 shrink-0 text-primary" />

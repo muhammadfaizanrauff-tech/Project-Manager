@@ -632,8 +632,12 @@ const SECTIONS: Section[] = [
               columns show.
             </>,
             <>
-              <strong>Kanban</strong> — the same tasks as cards in status columns. Drag a card to
-              a different column to change its status.
+              <strong>Kanban</strong> — the same tasks as cards in one column per stage: To Do,
+              In Progress, Done, and whatever else you&rsquo;ve set up under Settings →
+              Statuses. Inside a column the cards are banded by category, so if Design has three
+              tasks and one is finished, Design appears under Done with that task and again under
+              In Progress with the other two. Drag a card to another column to change its stage;
+              drop it straight onto a category band to change its category at the same time.
             </>,
             <>
               <strong>Dashboard</strong> — charts for this project alone.
@@ -1242,7 +1246,7 @@ export function HandbookContent() {
               key={section.id}
               id={section.id}
               // scroll-mt clears the sticky header when a "?" jumps here.
-              className="scroll-mt-20 gap-4 rounded-2xl p-6 shadow-sm"
+              className="scroll-mt-20 gap-4 rounded-md p-5 shadow-none"
             >
               <header className="flex items-start gap-3">
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">

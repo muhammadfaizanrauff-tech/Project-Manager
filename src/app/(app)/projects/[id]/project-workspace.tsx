@@ -22,11 +22,11 @@ import { TaskSheet } from "./task-sheet";
 // only ever needed once someone actually switches to that tab, so they're
 // loaded on demand instead of bundled with the default Table view.
 const KanbanView = dynamic(() => import("./kanban-view").then((m) => m.KanbanView), {
-  loading: () => <Skeleton className="h-96 w-full rounded-2xl" />,
+  loading: () => <Skeleton className="h-96 w-full rounded-md" />,
 });
 const ProjectDashboard = dynamic(
   () => import("./project-dashboard").then((m) => m.ProjectDashboard),
-  { loading: () => <Skeleton className="h-96 w-full rounded-2xl" /> },
+  { loading: () => <Skeleton className="h-96 w-full rounded-md" /> },
 );
 
 export function ProjectWorkspace({
@@ -162,7 +162,9 @@ export function ProjectWorkspace({
         </Tabs>
         <HelpTip topic="tasks">
           <strong>Table</strong> groups tasks under their categories and lets you edit inline.
-          <strong> Kanban</strong> shows the same tasks as cards you drag between status columns.
+          <strong> Kanban</strong> gives each stage a column — To Do, In Progress, Done — with the
+          cards inside banded by category, so a category shows up under every stage it has work
+          at. Drag a card to change its stage.
           <strong> Dashboard</strong> charts this project on its own.
         </HelpTip>
         </div>

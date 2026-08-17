@@ -16,7 +16,7 @@ import type { Status } from "@/lib/tasks";
 // A table row for every task means these dropdowns get mounted hundreds of
 // times, and a Select is expensive: context, refs, ids, portal wiring. Until
 // someone actually clicks one, render a plain <button> painted to match the
-// real SelectTrigger — same pill, same padding, same chevron — then swap in
+// real SelectTrigger — same tag, same padding, same chevron — then swap in
 // the actual Select already open. It still takes a single click, and only the
 // handful of rows you touch ever pay the cost.
 //
@@ -46,7 +46,7 @@ function LazyChipSelect({
       onClick={() => setActivated(true)}
       style={style}
       className={cn(
-        "flex w-fit items-center justify-between gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs outline-none select-none disabled:cursor-not-allowed disabled:opacity-50",
+        "flex w-fit items-center justify-between gap-1 whitespace-nowrap rounded-sm px-2 py-0.5 text-xs outline-none select-none disabled:cursor-not-allowed disabled:opacity-50",
         className,
       )}
     >
@@ -56,6 +56,10 @@ function LazyChipSelect({
   );
 }
 
+// Notion's tag colours, exactly: a pale wash of the hue with a very dark
+// version of the same hue as text in light mode, and the reverse — a 15% wash
+// with the bright hue as text — in dark. Tailwind's red-100/red-700 pairs were
+// close but read as a different product.
 export const PRIORITY_STYLES: Record<
   "high" | "medium" | "low",
   { label: string; className: string }
@@ -63,17 +67,17 @@ export const PRIORITY_STYLES: Record<
   high: {
     label: "High",
     className:
-      "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+      "bg-[#ffe2dd] text-[#5d1715] dark:bg-[#ff7369]/15 dark:text-[#ff7369]",
   },
   medium: {
     label: "Medium",
     className:
-      "bg-yellow-100 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300",
+      "bg-[#fdecc8] text-[#402c1b] dark:bg-[#ffdc49]/15 dark:text-[#ffdc49]",
   },
   low: {
     label: "Low",
     className:
-      "bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300",
+      "bg-[#dbeddb] text-[#1c3829] dark:bg-[#4dab9a]/15 dark:text-[#4dab9a]",
   },
 };
 
@@ -82,7 +86,7 @@ export function PriorityChip({ priority }: { priority: "high" | "medium" | "low"
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-medium",
         style.className,
       )}
     >
@@ -117,7 +121,7 @@ export function PrioritySelect({
           <SelectTrigger
             size="sm"
             className={cn(
-              "h-auto w-auto gap-1 rounded-full border-none px-2 py-0.5 text-xs font-medium shadow-none",
+              "h-auto w-auto gap-1 rounded-sm border-none px-2 py-0.5 text-xs font-medium shadow-none",
               style.className,
             )}
           >
@@ -148,14 +152,14 @@ function statusChipStyle(color: string) {
 export function StatusChip({ status }: { status: Status | null | undefined }) {
   if (!status) {
     return (
-      <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+      <span className="inline-flex items-center rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
         No status
       </span>
     );
   }
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+      className="inline-flex items-center rounded-sm px-2 py-0.5 text-xs font-semibold"
       style={statusChipStyle(status.color)}
     >
       {status.label}
@@ -192,7 +196,7 @@ export function StatusSelect({
         >
           <SelectTrigger
             size="sm"
-            className="h-auto w-auto gap-1 rounded-full border-none px-2 py-0.5 text-xs font-semibold shadow-none"
+            className="h-auto w-auto gap-1 rounded-sm border-none px-2 py-0.5 text-xs font-semibold shadow-none"
             style={current ? statusChipStyle(current.color) : undefined}
           >
             <SelectValue placeholder="No status">{current?.label ?? "No status"}</SelectValue>

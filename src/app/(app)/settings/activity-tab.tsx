@@ -134,7 +134,7 @@ function EntryList({ entries }: { entries: AuditEntry[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 rounded-2xl border-dashed py-12 text-center">
+        <Card className="flex flex-col items-center gap-2 rounded-md border-dashed py-12 text-center">
           <Activity className="size-8 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">
             {entries.length === 0
@@ -143,7 +143,7 @@ function EntryList({ entries }: { entries: AuditEntry[] }) {
           </p>
         </Card>
       ) : (
-        <ul className="rounded-2xl border">
+        <ul className="rounded-md border">
           {filtered.map((entry) => (
             <EntryRow key={entry.id} entry={entry} />
           ))}
@@ -233,7 +233,7 @@ export function ActivityTab({
       }
     >
       {pending ? (
-        <Card className="flex items-center justify-center gap-2 rounded-2xl py-12 text-sm text-muted-foreground">
+        <Card className="flex items-center justify-center gap-2 rounded-md py-12 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           Loading activity…
         </Card>

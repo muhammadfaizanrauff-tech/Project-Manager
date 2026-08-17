@@ -336,7 +336,7 @@ export function OrganizationsTab({
     >
 
       {organizations.length === 0 && (
-        <Card className="flex flex-col items-center gap-2 rounded-2xl border-dashed py-12 text-center">
+        <Card className="flex flex-col items-center gap-2 rounded-md border-dashed py-12 text-center">
           <Building2 className="size-8 text-muted-foreground/50" />
           <p className="text-sm text-muted-foreground">
             No organizations yet. Create one per company you work with.
@@ -346,7 +346,7 @@ export function OrganizationsTab({
 
       <div className="grid gap-3 lg:grid-cols-2">
         {organizations.map((org) => (
-          <Card key={org.id} className="gap-3 rounded-2xl p-5 shadow-sm">
+          <Card key={org.id} className="gap-3 rounded-md p-4 shadow-none">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-start gap-3">
                 <Avatar className="size-10 shrink-0 rounded-xl" size="lg">

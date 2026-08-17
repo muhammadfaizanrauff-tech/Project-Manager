@@ -19,18 +19,15 @@ function formatDate(value: string | null) {
   });
 }
 
-const LOGO_GRADIENTS = [
-  "from-violet-500 to-indigo-600",
-  "from-fuchsia-500 to-pink-600",
-  "from-sky-500 to-cyan-600",
-  "from-amber-500 to-orange-600",
-  "from-emerald-500 to-teal-600",
-];
+/** Notion's tag colours. A project's letter-tile gets one of them as a wash
+ *  rather than a gradient — the same `${colour}1f` background / solid
+ *  foreground pairing the status chips use, which holds up in both themes. */
+const LOGO_ACCENTS = ["#2383e2", "#d9730d", "#448361", "#6940a5", "#c14c8a"];
 
-function gradientFor(id: string) {
+function accentFor(id: string) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return LOGO_GRADIENTS[hash % LOGO_GRADIENTS.length];
+  return LOGO_ACCENTS[hash % LOGO_ACCENTS.length];
 }
 
 export function ProjectsGrid({
@@ -71,15 +68,20 @@ export function ProjectsGrid({
         return (
           <StaggerItem key={project.id}>
             <Link href={`/projects/${project.id}`} className="block h-full">
-              <Card className="h-full gap-3 rounded-2xl border-border/60 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5">
+              {/* Notion answers hover with grey, not with lift and shadow. */}
+              <Card className="h-full gap-3 rounded-md p-4 shadow-none transition-colors duration-150 hover:bg-accent/50">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <Avatar className="size-10 rounded-xl" size="lg">
+                    <Avatar className="size-9 rounded-md" size="lg">
                       {project.logo_url && (
-                        <AvatarImage src={project.logo_url} className="rounded-xl" />
+                        <AvatarImage src={project.logo_url} className="rounded-md" />
                       )}
                       <AvatarFallback
-                        className={`rounded-xl bg-gradient-to-br text-white ${gradientFor(project.id)}`}
+                        className="rounded-md"
+                        style={{
+                          backgroundColor: `${accentFor(project.id)}1f`,
+                          color: accentFor(project.id),
+                        }}
                       >
                         <FolderKanban className="size-5" />
                       </AvatarFallback>
@@ -109,10 +111,10 @@ export function ProjectsGrid({
                       />
                     </button>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                      className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${
                         overdue
-                          ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400"
+                          ? "bg-[#ffe2dd] text-[#5d1715] dark:bg-[#ff7369]/15 dark:text-[#ff7369]"
+                          : "bg-[#dbeddb] text-[#1c3829] dark:bg-[#4dab9a]/15 dark:text-[#4dab9a]"
                       }`}
                     >
                       {overdue ? "Overdue" : "Active"}
@@ -134,7 +136,7 @@ export function ProjectsGrid({
                 <div className="mt-1 flex flex-col gap-1.5">
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-gradient-to-r from-primary to-accent-foreground/70 transition-all duration-500"
+                      className="h-full rounded-full bg-primary transition-all duration-500"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
