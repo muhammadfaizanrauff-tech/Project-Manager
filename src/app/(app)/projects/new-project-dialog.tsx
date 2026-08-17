@@ -18,19 +18,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AssignablePerson } from "@/lib/projects";
 import { createProject, type CreateProjectState } from "./actions";
-import { ProjectPeopleFields, type OrgOption } from "./project-people-fields";
+import {
+  ProjectPeopleFields,
+  type FolderOption,
+  type OrgOption,
+} from "./project-people-fields";
 
 const initialState: CreateProjectState = {};
 
 export function NewProjectDialog({
   people,
   organizations,
+  folders,
+  defaultFolderId,
+  defaultFolderName,
   canAssignPeople,
   isAdmin,
   defaultOrganizationName,
 }: {
   people: AssignablePerson[];
   organizations: OrgOption[];
+  folders: FolderOption[];
+  /** Where this person's projects go by default — the folder their assigned
+   *  work already lives in. Opens the picker on it for Admins and Managers, and
+   *  is the folder a member's project is filed into without asking. */
+  defaultFolderId?: string | null;
+  defaultFolderName?: string | null;
   canAssignPeople: boolean;
   isAdmin: boolean;
   /** Only set for members, who file their project without a picker. */
@@ -94,6 +107,8 @@ export function NewProjectDialog({
               organizations={organizations}
               people={people}
               canChooseOrganization
+              folders={folders}
+              defaultFolderId={defaultFolderId}
               managerIds={managerIds}
               memberIds={memberIds}
               onManagerIdsChange={setManagerIds}
@@ -111,7 +126,13 @@ export function NewProjectDialog({
             <p className="rounded-lg bg-muted/60 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
               {defaultOrganizationName ? (
                 <>
-                  This project is filed under <strong>{defaultOrganizationName}</strong>{" "}
+                  This project is filed under <strong>{defaultOrganizationName}</strong>
+                  {defaultFolderName ? (
+                    <>
+                      {" "}
+                      in the <strong>{defaultFolderName}</strong> folder
+                    </>
+                  ) : null}{" "}
                   automatically.{" "}
                 </>
               ) : null}

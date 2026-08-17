@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Download,
   FileUp,
+  Folder,
   FolderKanban,
   KeyRound,
   LayoutDashboard,
@@ -356,6 +357,81 @@ const SECTIONS: Section[] = [
         <P>
           Its projects are not deleted; they become unassigned and only you can see them until you
           move them into another organization. The user accounts are untouched.
+        </P>
+      </div>
+    ),
+  },
+  {
+    id: "project-folders",
+    title: "Folders",
+    icon: Folder,
+    summary: "Filing for projects, inside an organization. Never changes access.",
+    body: (
+      <div className="flex flex-col gap-4">
+        <P>
+          A folder is a drawer inside an organization that projects sit in — Client Work, Internal,
+          Archive 2025, whatever suits how you work. The full shape is{" "}
+          <strong>Organization → Folder → Project → Category → Task</strong>.
+        </P>
+
+        <Callout tone="warn" title="Folders are filing, not permission">
+          Moving a project into a folder changes <strong>nothing</strong> about who can open it.
+          Access is still exactly the project&apos;s managers, its assigned members, whoever
+          created it, and the Admin. Putting ten projects in one folder does not give anyone
+          sight of the other nine.
+        </Callout>
+
+        <H>Making one</H>
+        <Steps
+          items={[
+            <>
+              On the <strong>Projects</strong> page, click <strong>New folder</strong> in the row
+              of folder chips above the search box.
+            </>,
+            <>
+              Type a name and press Enter. As Admin you also pick which organization it belongs
+              to; a Manager&apos;s folder goes into their own organization automatically.
+            </>,
+            <>
+              Click any chip to show only that folder&apos;s projects. <strong>All projects</strong>{" "}
+              clears it again.
+            </>,
+          ]}
+        />
+        <P>
+          Admins and Managers create folders. Members file projects into folders that already
+          exist, but don&apos;t make new ones. Every organization starts with one called{" "}
+          <strong>General</strong>, and that one can be renamed but not deleted — it&apos;s the
+          fallback everything else relies on.
+        </P>
+
+        <H>Moving a project</H>
+        <P>
+          Hover a project — card or list row — and use the folder button beside its star. Pick a
+          folder, or <strong>Remove from folder</strong> to leave it unfiled. Only folders in that
+          project&apos;s own organization are offered, because a project and its folder always
+          belong to the same company. Whoever can edit a project can re-file it.
+        </P>
+
+        <H>Which folder a new project goes into</H>
+        <P>
+          Every project is filed on creation, and you never have to hunt for the right folder:
+          the picker opens on <strong>your default folder</strong>, which is worked out as{" "}
+          <em>wherever the work already assigned to you lives</em> — the folder holding most of
+          the projects you manage or are a member of. If nobody has assigned you anything yet, it
+          falls back to your organization&apos;s General folder.
+        </P>
+        <P>
+          Admins and Managers can change the choice in the New Project dialog. Members
+          don&apos;t see a picker at all — their project is filed into that same default, and the
+          dialog tells them which folder and organization it&apos;s going into.
+        </P>
+
+        <H>Projects with no folder</H>
+        <P>
+          A project can sit outside every folder; it shows as <strong>Unfiled</strong>, and the
+          Unfiled chip only appears when something is actually in that state. Deleting a folder
+          never deletes projects — they simply become unfiled.
         </P>
       </div>
     ),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2 } from "lucide-react";
+import { Building2, Folder } from "lucide-react";
 
 import { HelpTip } from "@/components/help-tip";
 import { MultiSelect, type MultiSelectOption } from "@/components/multi-select";
@@ -16,6 +16,7 @@ import {
 import type { AssignablePerson } from "@/lib/projects";
 
 export type OrgOption = { id: string; name: string };
+export type FolderOption = { id: string; name: string; organization_id: string };
 
 /**
  * The organization + managers + members block shared by the create and edit
@@ -31,6 +32,8 @@ export function ProjectPeopleFields({
   people,
   canChooseOrganization,
   defaultOrganizationId,
+  folders,
+  defaultFolderId,
   managerIds,
   memberIds,
   onManagerIdsChange,
@@ -40,6 +43,10 @@ export function ProjectPeopleFields({
   people: AssignablePerson[];
   canChooseOrganization: boolean;
   defaultOrganizationId?: string | null;
+  /** Omit to leave the folder field out entirely — callers that predate
+   *  folders (schema-v13) keep their current form. */
+  folders?: FolderOption[];
+  defaultFolderId?: string | null;
   managerIds: string[];
   memberIds: string[];
   onManagerIdsChange: (ids: string[]) => void;
@@ -48,6 +55,7 @@ export function ProjectPeopleFields({
   const [orgId, setOrgId] = useState<string>(
     defaultOrganizationId ?? organizations[0]?.id ?? "",
   );
+  const [folderChoice, setFolderChoice] = useState<string>(defaultFolderId ?? "");
 
   // Admins are deliberately exempt from the organization filter — they operate
   // across all of them, and need to be assignable to any project as a manager,
@@ -81,9 +89,21 @@ export function ProjectPeopleFields({
     hint: p.role,
   }));
 
+  // A folder belongs to one organization, so the list follows the picker above.
+  const eligibleFolders = (folders ?? []).filter((f) => f.organization_id === orgId);
+
+  // Derived rather than corrected in an effect: switching organization makes a
+  // previously chosen folder invalid, and the answer is simply to stop using it
+  // — storing the correction would mean a setState during render's effect for
+  // something that can be computed outright.
+  const folderId = eligibleFolders.some((f) => f.id === folderChoice)
+    ? folderChoice
+    : eligibleFolders[0]?.id ?? "";
+
   return (
     <>
       <input type="hidden" name="organizationId" value={orgId} />
+      {folders && <input type="hidden" name="folderId" value={folderId} />}
 
       <div className="flex flex-col gap-1.5">
         <Label className="flex items-center gap-1.5">
@@ -120,6 +140,38 @@ export function ProjectPeopleFields({
           </p>
         )}
       </div>
+
+      {folders && (
+        <div className="flex flex-col gap-1.5">
+          <Label className="flex items-center gap-1.5">
+            <Folder className="size-3.5" />
+            Folder
+            <HelpTip topic="project-folders">
+              The folder this project is filed under, inside the organization above. Folders are
+              filing only — putting a project in one doesn&apos;t give anybody access to it.
+            </HelpTip>
+          </Label>
+          {eligibleFolders.length > 0 ? (
+            <Select value={folderId} onValueChange={(v) => setFolderChoice(v ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choose a folder" />
+              </SelectTrigger>
+              <SelectContent>
+                {eligibleFolders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              This organization has no folders yet — the project will be created unfiled, and you
+              can add a folder for it from the Projects page.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label className="flex items-center gap-1.5">

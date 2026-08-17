@@ -26,8 +26,10 @@ export type AuditAction =
   | "category.delete"
   | "project.create"
   | "project.update"
+  | "project.move"
   | "project.delete"
   | "project.clone"
+  | "folder.create"
   | "import.run"
   | "export.run"
   | "delete_request.create"
@@ -79,6 +81,8 @@ export const AUDIT_LABELS: Record<string, string> = {
   "category.delete": "Deleted a category",
   "project.create": "Created a project",
   "project.update": "Edited a project",
+  "project.move": "Moved a project to a folder",
+  "folder.create": "Created a folder",
   "project.delete": "Deleted a project",
   "project.clone": "Cloned a project",
   "import.run": "Imported tasks",

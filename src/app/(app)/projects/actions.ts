@@ -10,6 +10,12 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { getCurrentProfile, getCurrentUser } from "@/lib/auth";
 import { notifyProjectAssigned } from "@/lib/email";
 import { publishEvent } from "@/lib/notifications";
+import {
+  defaultFolderForOrganization,
+  defaultFolderForUser,
+  folderIdsForUser,
+  folderOrganization,
+} from "@/lib/folders";
 import { defaultOrganizationForUser, orgIdsForUser } from "@/lib/organizations";
 
 export type CreateProjectState = {
@@ -80,6 +86,41 @@ export async function createProject(
     fileAfterInsert = Boolean(fallback && !fallback.isMember && profile.role !== "admin");
   }
 
+  // Folders (schema-v13) work the same way as organizations above, and for the
+  // same reason: Admins and Managers are shown the picker and held to picking
+  // one of their own, while a member's project is filed for them rather than
+  // refused — their default folder is wherever their assigned work already
+  // lives (see defaultFolderForUser).
+  const submittedFolderId = canAssignPeople
+    ? String(formData.get("folderId") ?? "") || null
+    : null;
+  let folderId = submittedFolderId;
+
+  if (folderId && profile.role !== "admin") {
+    const myFolders = await folderIdsForUser(user.id);
+    if (!myFolders.includes(folderId)) {
+      return { error: "Pick one of your own folders for this project." };
+    }
+  }
+
+  if (!folderId) {
+    folderId = (await defaultFolderForUser(user.id))?.id ?? null;
+  }
+
+  // A folder belongs to one organization, and the database trigger refuses a
+  // project whose folder and organization disagree. Someone who picked both
+  // and got it wrong is told; a folder that merely *defaulted* to the wrong
+  // organization is replaced with the right organization's own default.
+  if (folderId && organizationId) {
+    const owner = await folderOrganization(folderId);
+    if (owner && owner !== organizationId) {
+      if (submittedFolderId) {
+        return { error: "That folder belongs to a different organization than the one you picked." };
+      }
+      folderId = (await defaultFolderForOrganization(organizationId))?.id ?? null;
+    }
+  }
+
   let logoUrl: string | null = null;
   if (logo instanceof File && logo.size > 0) {
     const service = createServiceClient();
@@ -110,6 +151,15 @@ export async function createProject(
       // the source of truth.
       manager_id: managerIds[0] ?? null,
       organization_id: fileAfterInsert ? null : organizationId,
+      // Held back with the organization in the fallback case: the trigger that
+      // keeps folder and organization in step would see a folder naming an
+      // organization this row doesn't have yet.
+      //
+      // Omitted entirely rather than sent as null when there's no folder, which
+      // is also what happens on a database that hasn't run schema-v13 yet —
+      // naming a column Postgres doesn't have would fail the whole insert and
+      // stop anyone creating a project at all.
+      ...(fileAfterInsert || !folderId ? {} : { folder_id: folderId }),
       created_by: user.id,
       start_date: startDate,
       end_date: endDate,
@@ -132,10 +182,14 @@ export async function createProject(
   }
 
   // The organization the creator isn't a member of — see fileAfterInsert above.
+  // Organization and folder go on together so the trigger sees a consistent row.
   if (fileAfterInsert && organizationId) {
     await createServiceClient()
       .from("projects")
-      .update({ organization_id: organizationId })
+      .update({
+        organization_id: organizationId,
+        ...(folderId ? { folder_id: folderId } : {}),
+      })
       .eq("id", project.id);
   }
 

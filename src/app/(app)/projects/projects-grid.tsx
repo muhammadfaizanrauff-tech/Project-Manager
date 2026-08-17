@@ -4,16 +4,29 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import {
   CalendarDays,
+  Check,
+  Folder,
   FolderKanban,
+  FolderPlus,
   LayoutGrid,
   List,
+  Loader2,
   Search,
   Star,
   Users,
 } from "lucide-react";
 
+import { HelpTip } from "@/components/help-tip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -23,8 +36,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StaggerItem, StaggerList } from "@/components/motion/stagger-list";
+import type { Folder as FolderRecord } from "@/lib/folders";
 import type { ProjectListItem } from "@/lib/projects";
 import { toggleFavorite } from "./favorites-actions";
+import { createFolder, moveProjectToFolder } from "./folder-actions";
+
+/** Stands in for "no folder" wherever a real folder id would go, so Unfiled can
+ *  be a chip and a menu item instead of a special case in every branch. */
+const UNFILED = "__unfiled__";
 
 const DAY_MS = 86_400_000;
 
@@ -142,6 +161,70 @@ function FavoriteButton({
   );
 }
 
+/**
+ * Re-file a project from the card it's on.
+ *
+ * Only folders in the project's own organization are offered — a folder belongs
+ * to one organization, and the database refuses the mismatch anyway
+ * (schema-v13's projects_folder_org_check), so offering it would be a menu item
+ * that only ever produces an error.
+ */
+function MoveToFolderMenu({
+  project,
+  folders,
+  onMove,
+  pending,
+}: {
+  project: ProjectListItem;
+  folders: FolderRecord[];
+  onMove: (folderId: string | null) => void;
+  pending: boolean;
+}) {
+  const eligible = folders.filter(
+    (folder) => !project.organization_id || folder.organization_id === project.organization_id,
+  );
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`Move ${project.name} to a folder`}
+            title="Move to folder"
+            className="rounded-sm p-1 text-muted-foreground transition-opacity hover:text-foreground focus-visible:opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100"
+          >
+            {pending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Folder className="size-4" />
+            )}
+          </button>
+        }
+      />
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>Move to folder</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {eligible.length === 0 ? (
+          <DropdownMenuItem disabled>No folders in this organization</DropdownMenuItem>
+        ) : (
+          eligible.map((folder) => (
+            <DropdownMenuItem key={folder.id} onClick={() => onMove(folder.id)}>
+              <span className="flex-1 truncate">{folder.name}</span>
+              {project.folder_id === folder.id && <Check className="size-3.5 shrink-0" />}
+            </DropdownMenuItem>
+          ))
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => onMove(null)}>
+          <span className="flex-1">Remove from folder</span>
+          {!project.folder_id && <Check className="size-3.5 shrink-0" />}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** Managers as overlapping initials rather than "Name +2" — three faces read
  *  faster than a truncated sentence, and the count still tells the truth. */
 function PeopleSummary({ project }: { project: ProjectListItem }) {
@@ -214,48 +297,75 @@ function ProjectCard({
   project,
   isFavorite,
   onToggleFavorite,
+  folders,
+  onMove,
+  moving,
 }: {
   project: ProjectListItem;
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
+  folders: FolderRecord[];
+  onMove: (folderId: string | null) => void;
+  moving: boolean;
 }) {
   const due = dueStatus(project.end_date);
 
   return (
-    <Link href={`/projects/${project.id}`} className="group/card block h-full">
-      {/* Notion answers hover with grey, not with lift and shadow. */}
-      <Card className="h-full gap-0 rounded-md p-0 shadow-none transition-colors duration-150 hover:bg-accent/40">
-        <div className="flex items-start gap-3 p-4 pb-3">
-          <ProjectTile project={project} />
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate text-sm font-semibold leading-tight">{project.name}</h3>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {project.organization_name ?? "No organization"}
-            </p>
-          </div>
+    // The link is a sibling of the controls, stretched over the whole card,
+    // rather than their ancestor: a <button> inside an <a> is invalid HTML, and
+    // it forced every control to cancel the navigation by hand.
+    // Notion answers hover with grey, not with lift and shadow.
+    <Card className="group/card relative h-full gap-0 rounded-md p-0 shadow-none transition-colors duration-150 hover:bg-accent/40">
+      <div className="flex items-start gap-3 p-4 pb-3">
+        <ProjectTile project={project} />
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-sm font-semibold leading-tight">{project.name}</h3>
+          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+            <Folder className="size-3 shrink-0 opacity-70" />
+            <span className="truncate">{project.folder_name ?? "Unfiled"}</span>
+            <span className="opacity-50">·</span>
+            <span className="truncate">{project.organization_name ?? "No organization"}</span>
+          </p>
+        </div>
+        {/* z-10 lifts these above the stretched link below. */}
+        <div className="relative z-10 flex shrink-0 items-center gap-0.5">
+          <MoveToFolderMenu
+            project={project}
+            folders={folders}
+            onMove={onMove}
+            pending={moving}
+          />
           <FavoriteButton isFavorite={isFavorite} onToggle={onToggleFavorite} />
         </div>
+      </div>
 
-        <div className="flex flex-col gap-1.5 px-4">
-          <div className="flex items-baseline justify-between gap-2 text-xs">
-            <TaskCount project={project} />
-            <span className="text-sm font-semibold tabular-nums">{progressOf(project)}%</span>
-          </div>
-          <ProgressBar project={project} />
+      <div className="flex flex-col gap-1.5 px-4">
+        <div className="flex items-baseline justify-between gap-2 text-xs">
+          <TaskCount project={project} />
+          <span className="text-sm font-semibold tabular-nums">{progressOf(project)}%</span>
         </div>
+        <ProgressBar project={project} />
+      </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2 border-t px-4 py-2.5 text-xs">
-          <PeopleSummary project={project} />
-          <span
-            className={`flex shrink-0 items-center gap-1 ${DUE_TONE[due.tone]}`}
-            title={project.end_date ? formatDate(project.end_date) : undefined}
-          >
-            <CalendarDays className="size-3.5" />
-            {due.label}
-          </span>
-        </div>
-      </Card>
-    </Link>
+      <div className="mt-3 flex items-center justify-between gap-2 border-t px-4 py-2.5 text-xs">
+        <PeopleSummary project={project} />
+        <span
+          className={`flex shrink-0 items-center gap-1 ${DUE_TONE[due.tone]}`}
+          title={project.end_date ? formatDate(project.end_date) : undefined}
+        >
+          <CalendarDays className="size-3.5" />
+          {due.label}
+        </span>
+      </div>
+
+      {/* Last in the DOM so it paints over the static content above, but under
+          the controls, which are positioned. */}
+      <Link
+        href={`/projects/${project.id}`}
+        aria-label={project.name}
+        className="absolute inset-0 rounded-md"
+      />
+    </Card>
   );
 }
 
@@ -266,15 +376,21 @@ function ProjectRow({
   project,
   isFavorite,
   onToggleFavorite,
+  folders,
+  onMove,
+  moving,
 }: {
   project: ProjectListItem;
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
+  folders: FolderRecord[];
+  onMove: (folderId: string | null) => void;
+  moving: boolean;
 }) {
   const due = dueStatus(project.end_date);
 
   return (
-    <Link href={`/projects/${project.id}`} className="group/card block">
+    <div className="group/card relative">
       <div className="flex items-center gap-3 rounded-md border bg-card px-3 py-2.5 transition-colors duration-150 hover:bg-accent/40">
         <ProjectTile project={project} size="sm" />
 
@@ -287,6 +403,7 @@ function ProjectRow({
               {progressOf(project)}% · {due.label}
             </span>
             <span className="hidden sm:inline">
+              {project.folder_name ?? "Unfiled"} ·{" "}
               {project.organization_name ?? "No organization"}
             </span>
           </p>
@@ -315,9 +432,23 @@ function ProjectRow({
           <span className="truncate">{due.label}</span>
         </span>
 
-        <FavoriteButton isFavorite={isFavorite} onToggle={onToggleFavorite} />
+        <div className="relative z-10 flex shrink-0 items-center gap-0.5">
+          <MoveToFolderMenu
+            project={project}
+            folders={folders}
+            onMove={onMove}
+            pending={moving}
+          />
+          <FavoriteButton isFavorite={isFavorite} onToggle={onToggleFavorite} />
+        </div>
       </div>
-    </Link>
+
+      <Link
+        href={`/projects/${project.id}`}
+        aria-label={project.name}
+        className="absolute inset-0 rounded-md"
+      />
+    </div>
   );
 }
 
@@ -370,22 +501,251 @@ function Segmented<T extends string>({
   );
 }
 
+function FolderChip({
+  active,
+  count,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  count: number;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+        active
+          ? "border-transparent bg-secondary text-secondary-foreground"
+          : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+      }`}
+    >
+      {children}
+      <span className="tabular-nums opacity-60">{count}</span>
+    </button>
+  );
+}
+
+/**
+ * The folder row above the toolbar: one chip per folder, and — for an Admin or
+ * a Manager — the inline field that makes a new one.
+ *
+ * Chips rather than a dropdown because folders are the thing you navigate by
+ * here, and a list you can see is worth more than a menu you have to open. An
+ * empty folder still gets a chip: it's how you find the one you just made in
+ * order to move something into it.
+ */
+function FolderRail({
+  folders,
+  counts,
+  unfiledCount,
+  total,
+  active,
+  onChange,
+  canManageFolders,
+  organizations,
+  onCreate,
+  creating,
+}: {
+  folders: FolderRecord[];
+  counts: Map<string, number>;
+  unfiledCount: number;
+  total: number;
+  active: string;
+  onChange: (value: string) => void;
+  canManageFolders: boolean;
+  organizations: OrgOption[];
+  onCreate: (name: string, organizationId: string | null) => void;
+  creating: boolean;
+}) {
+  const [drafting, setDrafting] = useState(false);
+  const [name, setName] = useState("");
+  const [orgId, setOrgId] = useState(organizations[0]?.id ?? "");
+
+  function submit() {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setDrafting(false);
+      return;
+    }
+    onCreate(trimmed, orgId || null);
+    setName("");
+    setDrafting(false);
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <FolderChip active={active === "all"} count={total} onClick={() => onChange("all")}>
+        All projects
+      </FolderChip>
+
+      {folders.map((folder) => (
+        <FolderChip
+          key={folder.id}
+          active={active === folder.id}
+          count={counts.get(folder.id) ?? 0}
+          onClick={() => onChange(folder.id)}
+        >
+          <Folder className="size-3.5" />
+          {folder.name}
+        </FolderChip>
+      ))}
+
+      {/* Only worth a chip when something is actually unfiled. */}
+      {unfiledCount > 0 && (
+        <FolderChip
+          active={active === UNFILED}
+          count={unfiledCount}
+          onClick={() => onChange(UNFILED)}
+        >
+          Unfiled
+        </FolderChip>
+      )}
+
+      {canManageFolders &&
+        (drafting ? (
+          <span className="flex items-center gap-1.5">
+            <Input
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submit();
+                if (e.key === "Escape") {
+                  setName("");
+                  setDrafting(false);
+                }
+              }}
+              placeholder="Folder name"
+              className="h-7 w-40 text-sm"
+            />
+            {/* An Admin spans organizations, so a new folder has to say which
+                one it's for. Everyone else has exactly one answer. */}
+            {organizations.length > 1 && (
+              <Select value={orgId} onValueChange={(v) => setOrgId(v ?? "")}>
+                <SelectTrigger className="h-7 w-40 text-xs">
+                  <SelectValue placeholder="Organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  {organizations.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <button
+              type="button"
+              onClick={submit}
+              className="rounded-sm px-2 py-1 text-xs font-medium text-primary hover:underline"
+            >
+              Add
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDrafting(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:border-solid hover:bg-accent/60 hover:text-foreground"
+          >
+            {creating ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <FolderPlus className="size-3.5" />
+            )}
+            New folder
+          </button>
+        ))}
+
+      <HelpTip topic="project-folders">
+        Folders group projects inside an organization. They&apos;re filing only — moving a project
+        into a folder never changes who can open it. New projects go into your default folder,
+        which is wherever the work already assigned to you lives.
+      </HelpTip>
+    </div>
+  );
+}
+
+type OrgOption = { id: string; name: string };
 type Scope = "all" | "starred" | "late";
 type Sort = "recent" | "name" | "progress" | "due";
 
 export function ProjectsGrid({
   projects,
   favoriteIds,
+  folders,
+  canManageFolders,
 }: {
   projects: ProjectListItem[];
   favoriteIds: string[];
+  folders: FolderRecord[];
+  /** Admins and Managers only — a member files into existing folders but
+   *  doesn't create them (enforced by RLS, see schema-v13). */
+  canManageFolders: boolean;
 }) {
   const [favorites, setFavorites] = useState(new Set(favoriteIds));
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState<Scope>("all");
   const [sort, setSort] = useState<Sort>("recent");
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [folderFilter, setFolderFilter] = useState<string>("all");
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  // Server actions here never throw across the boundary, they return { error }.
+  // This is where that error becomes something the user can actually read.
+  const [notice, setNotice] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // Organizations to offer when creating a folder: taken from the projects on
+  // screen, which for a Manager is their own and for an Admin is all of them.
+  const organizations = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const project of projects) {
+      if (project.organization_id && project.organization_name) {
+        seen.set(project.organization_id, project.organization_name);
+      }
+    }
+    for (const folder of folders) {
+      if (folder.organization_name) seen.set(folder.organization_id, folder.organization_name);
+    }
+    return Array.from(seen.entries()).map(([id, name]) => ({ id, name }));
+  }, [projects, folders]);
+
+  const folderCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const project of projects) {
+      if (project.folder_id) {
+        counts.set(project.folder_id, (counts.get(project.folder_id) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [projects]);
+
+  const unfiledCount = projects.filter((project) => !project.folder_id).length;
+
+  function handleCreateFolder(name: string, organizationId: string | null) {
+    setNotice(null);
+    setCreatingFolder(true);
+    startTransition(async () => {
+      const result = await createFolder(name, organizationId);
+      setCreatingFolder(false);
+      if (result.error) setNotice(result.error);
+    });
+  }
+
+  function handleMove(projectId: string, folderId: string | null) {
+    setNotice(null);
+    setMovingId(projectId);
+    startTransition(async () => {
+      const result = await moveProjectToFolder(projectId, folderId);
+      setMovingId(null);
+      if (result.error) setNotice(result.error);
+    });
+  }
 
   function toggle(e: React.MouseEvent, projectId: string) {
     e.preventDefault();
@@ -407,6 +767,10 @@ export function ProjectsGrid({
     const today = startOfToday();
 
     const matches = projects.filter((project) => {
+      if (folderFilter === UNFILED && project.folder_id) return false;
+      if (folderFilter !== "all" && folderFilter !== UNFILED && project.folder_id !== folderFilter) {
+        return false;
+      }
       if (scope === "starred" && !favorites.has(project.id)) return false;
       if (scope === "late") {
         if (!project.end_date || new Date(project.end_date) >= today) return false;
@@ -417,6 +781,7 @@ export function ProjectsGrid({
       return (
         project.name.toLowerCase().includes(needle) ||
         (project.organization_name ?? "").toLowerCase().includes(needle) ||
+        (project.folder_name ?? "").toLowerCase().includes(needle) ||
         project.managers.some((m) => (m.full_name ?? "").toLowerCase().includes(needle))
       );
     });
@@ -442,12 +807,31 @@ export function ProjectsGrid({
       sorted.sort((a, b) => Number(favorites.has(b.id)) - Number(favorites.has(a.id)));
     }
     return sorted;
-  }, [projects, query, scope, sort, favorites]);
+  }, [projects, query, scope, sort, favorites, folderFilter]);
 
-  const filtering = query.trim() !== "" || scope !== "all";
+  const filtering = query.trim() !== "" || scope !== "all" || folderFilter !== "all";
 
   return (
     <div className="flex flex-col gap-3">
+      <FolderRail
+        folders={folders}
+        counts={folderCounts}
+        unfiledCount={unfiledCount}
+        total={projects.length}
+        active={folderFilter}
+        onChange={setFolderFilter}
+        canManageFolders={canManageFolders}
+        organizations={organizations}
+        onCreate={handleCreateFolder}
+        creating={creatingFolder}
+      />
+
+      {notice && (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {notice}
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -505,7 +889,9 @@ export function ProjectsGrid({
               ? "No starred projects yet — tap a star to pin one here."
               : scope === "late"
                 ? "Nothing is overdue."
-                : "No projects match that search."}
+                : folderFilter !== "all" && query.trim() === ""
+                  ? "This folder is empty — move a project into it from any project's folder menu."
+                  : "No projects match that search."}
           </p>
           {filtering && (
             <button
@@ -513,6 +899,7 @@ export function ProjectsGrid({
               onClick={() => {
                 setQuery("");
                 setScope("all");
+                setFolderFilter("all");
               }}
               className="text-sm font-medium text-primary hover:underline"
             >
@@ -535,12 +922,18 @@ export function ProjectsGrid({
                   project={project}
                   isFavorite={favorites.has(project.id)}
                   onToggleFavorite={(e) => toggle(e, project.id)}
+                  folders={folders}
+                  onMove={(folderId) => handleMove(project.id, folderId)}
+                  moving={movingId === project.id}
                 />
               ) : (
                 <ProjectRow
                   project={project}
                   isFavorite={favorites.has(project.id)}
                   onToggleFavorite={(e) => toggle(e, project.id)}
+                  folders={folders}
+                  onMove={(folderId) => handleMove(project.id, folderId)}
+                  moving={movingId === project.id}
                 />
               )}
             </StaggerItem>

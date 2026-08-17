@@ -13,6 +13,10 @@ export type ProjectListItem = {
   end_date: string | null;
   organization_id: string | null;
   organization_name: string | null;
+  /** Null means "Unfiled" — a project that predates folders (schema-v13) or one
+   *  deliberately taken out of every folder. */
+  folder_id: string | null;
+  folder_name: string | null;
   managers: ProjectPerson[];
   member_count: number;
   task_total: number;
@@ -43,24 +47,71 @@ async function managersByProject(
   return grouped;
 }
 
+const PROJECT_COLUMNS = "id, name, logo_url, start_date, end_date, organization_id";
+
+/**
+ * Projects, with `folder_id` when the database has it.
+ *
+ * Schema files here are applied by hand, so the app can be live before
+ * schema-v13.sql has been run. Selecting a column Postgres doesn't have yet
+ * fails the whole query, which would empty the projects page rather than merely
+ * hiding folders — so the folder column is asked for optimistically and dropped
+ * if the database says it doesn't exist (42703, undefined column).
+ */
+async function selectProjectRows(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const withFolders = await supabase
+    .from("projects")
+    .select(`${PROJECT_COLUMNS}, folder_id`)
+    .order("created_at", { ascending: false });
+
+  if (!withFolders.error) {
+    return { rows: withFolders.data as (Record<string, unknown> & { id: string })[] | null };
+  }
+
+  // Retried on *any* error rather than only "undefined column": Supabase
+  // reports a column its schema cache doesn't know about differently from one
+  // Postgres itself rejects, and getting that distinction wrong here would show
+  // an empty projects page. If the plain query fails too, the caller gets the
+  // same empty list it would have got before folders existed.
+  const withoutFolders = await supabase
+    .from("projects")
+    .select(PROJECT_COLUMNS)
+    .order("created_at", { ascending: false });
+
+  return { rows: withoutFolders.data as (Record<string, unknown> & { id: string })[] | null };
+}
+
 export async function listProjects(): Promise<ProjectListItem[]> {
   const supabase = await createClient();
 
-  const { data: projects, error } = await supabase
-    .from("projects")
-    .select("id, name, logo_url, start_date, end_date, organization_id")
-    .order("created_at", { ascending: false });
+  const { rows } = await selectProjectRows(supabase);
+  if (!rows) return [];
 
-  if (error || !projects) return [];
+  // Same reason as the column above: the table itself may not exist yet, and a
+  // missing folder list must not take the projects page down with it.
+  const foldersQuery = await supabase.from("project_folders").select("id, name");
 
   const [managers, { data: orgs }] = await Promise.all([
     managersByProject(
       supabase,
-      projects.map((p) => p.id),
+      rows.map((p) => p.id),
     ),
     supabase.from("organizations").select("id, name"),
   ]);
   const orgNameById = new Map((orgs ?? []).map((o) => [o.id, o.name]));
+  const folderNameById = new Map(
+    (foldersQuery.data ?? []).map((f) => [f.id as string, f.name as string]),
+  );
+
+  const projects = rows as unknown as {
+    id: string;
+    name: string;
+    logo_url: string | null;
+    start_date: string;
+    end_date: string | null;
+    organization_id: string | null;
+    folder_id?: string | null;
+  }[];
 
   const results: ProjectListItem[] = await Promise.all(
     projects.map(async (p) => {
@@ -91,6 +142,8 @@ export async function listProjects(): Promise<ProjectListItem[]> {
         organization_name: p.organization_id
           ? orgNameById.get(p.organization_id) ?? null
           : null,
+        folder_id: p.folder_id ?? null,
+        folder_name: p.folder_id ? folderNameById.get(p.folder_id) ?? null : null,
         managers: managers.get(p.id) ?? [],
         member_count: memberCount ?? 0,
         task_total: taskTotal,
