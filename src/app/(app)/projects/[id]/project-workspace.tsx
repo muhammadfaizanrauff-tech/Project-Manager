@@ -164,7 +164,8 @@ export function ProjectWorkspace({
           <strong>Table</strong> groups tasks under their categories and lets you edit inline.
           <strong> Kanban</strong> gives each stage a column — To Do, In Progress, Done — with the
           cards inside banded by category, so a category shows up under every stage it has work
-          at. Drag a card to change its stage.
+          at. Drag a card to change its stage. When there are more stages than fit, the bar under
+          the board shows how much is off-screen — drag it, or use the arrows at either edge.
           <strong> Dashboard</strong> charts this project on its own.
         </HelpTip>
         </div>

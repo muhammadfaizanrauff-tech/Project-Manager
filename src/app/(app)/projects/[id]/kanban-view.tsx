@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  useCallback,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   useTransition,
   type Dispatch,
@@ -24,7 +27,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarDays, MessageSquare, Plus } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, MessageSquare, Plus } from "lucide-react";
 
 import { PriorityChip } from "@/components/task-chips";
 import { upsertById } from "@/lib/utils";
@@ -75,13 +78,23 @@ function keysOf(task: TaskRecord): Target {
   };
 }
 
+/** Midnight today, so "overdue" is a whole-day question — a task due today is
+ *  not late until tomorrow. */
+function startOfToday() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 function TaskCard({
   task,
   commentCount,
+  isDone,
   onOpen,
 }: {
   task: TaskRecord;
   commentCount: number;
+  /** Cards in a Done column never read as late, however old the due date is. */
+  isDone: boolean;
   onOpen: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -92,6 +105,8 @@ function TaskCard({
     transition,
     opacity: isDragging ? 0.4 : 1,
   };
+
+  const overdue = !isDone && !!task.due_date && new Date(task.due_date) < startOfToday();
 
   return (
     <div
@@ -115,7 +130,12 @@ function TaskCard({
             </span>
           )}
           {task.due_date && (
-            <span className="flex items-center gap-1">
+            <span
+              className={`flex items-center gap-1 tabular-nums ${
+                overdue ? "font-medium text-destructive" : ""
+              }`}
+              title={overdue ? "Past due" : undefined}
+            >
               <CalendarDays className="size-3.5" />
               {new Date(task.due_date).toLocaleDateString("en-US", {
                 month: "short",
@@ -181,6 +201,7 @@ function CategorySection({
   category,
   tasks,
   commentCounts,
+  isDone,
   onOpen,
   draft,
   onDraftChange,
@@ -190,6 +211,7 @@ function CategorySection({
   category: { id: string; name: string };
   tasks: TaskRecord[];
   commentCounts: Record<string, number>;
+  isDone: boolean;
   onOpen: (task: TaskRecord) => void;
   draft: string | null;
   onDraftChange: (value: string | null) => void;
@@ -212,7 +234,7 @@ function CategorySection({
         <span className="truncate text-xs font-medium text-muted-foreground">
           {category.name}
         </span>
-        <span className="text-xs text-muted-foreground/70">{tasks.length}</span>
+        <span className="text-xs tabular-nums text-muted-foreground/70">{tasks.length}</span>
       </div>
 
       <div
@@ -227,6 +249,7 @@ function CategorySection({
               key={task.id}
               task={task}
               commentCount={commentCounts[task.id] ?? 0}
+              isDone={isDone}
               onOpen={() => onOpen(task)}
             />
           ))}
@@ -272,20 +295,28 @@ function StatusColumn({
   // category the card already had" — only the status changes.
   const { setNodeRef, isOver } = useDroppable({ id: columnId(statusKey) });
 
+  // Status is matched by its label everywhere else in the app (statuses are a
+  // configurable table, not an enum), so "is this the finished pile" is too.
+  const isDone = label === "Done";
+
   return (
-    <div className="group/column flex w-[78vw] max-w-[17rem] shrink-0 flex-col gap-2 sm:w-[17rem]">
-      <div className="flex items-center gap-2 px-0.5">
+    <div className="group/column flex h-full w-[78vw] max-w-[17rem] shrink-0 flex-col gap-2 sm:w-[17rem]">
+      {/* Outside the scrolling body on purpose: the stage name and its count
+          stay readable while you scroll a hundred cards under them. */}
+      <div className="flex shrink-0 items-center gap-2 px-0.5">
         <span
           className="size-2 shrink-0 rounded-full"
           style={{ backgroundColor: color ?? "var(--muted-foreground)" }}
         />
         <h3 className="truncate text-sm font-semibold">{label}</h3>
-        <span className="text-xs text-muted-foreground">{count}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">{count}</span>
       </div>
 
       <div
         ref={setNodeRef}
-        className={`flex flex-1 flex-col gap-4 rounded-md p-1.5 transition-colors ${
+        // min-h-0 is what lets this shrink inside the flex column and scroll
+        // itself instead of stretching the board past its frame.
+        className={`thin-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto rounded-md p-1.5 transition-colors ${
           isOver ? "bg-accent/50" : "bg-muted/50"
         }`}
       >
@@ -296,6 +327,7 @@ function StatusColumn({
             category={category}
             tasks={tasks}
             commentCounts={commentCounts}
+            isDone={isDone}
             onOpen={onOpen}
             draft={drafts[category.id] ?? null}
             onDraftChange={(value) => onDraftChange(category.id, value)}
@@ -320,6 +352,149 @@ function StatusColumn({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Where the board's horizontal scroll is, how much of it fits, and how much
+ *  there is in total — everything the scroll guide draws itself from. */
+type ScrollMetrics = { left: number; width: number; total: number };
+
+/**
+ * A board with a column per stage is usually wider than the window, and a
+ * native scrollbar doesn't announce that until you go looking for it — people
+ * miss whole stages sitting just off the right edge. This tracks the scroll so
+ * the guide can say three things: which directions have more (edge fades),
+ * how to step there (arrows), and where you are in the whole board (the rail).
+ */
+function useBoardScroll() {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [metrics, setMetrics] = useState<ScrollMetrics>({ left: 0, width: 1, total: 1 });
+
+  const measure = useCallback(() => {
+    const el = scrollerRef.current;
+    if (el) setMetrics({ left: el.scrollLeft, width: el.clientWidth, total: el.scrollWidth });
+  }, []);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    // Both ends matter: the window resizing changes what fits, and a column
+    // gaining a card changes the total — neither fires a scroll event.
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [measure]);
+
+  const scrollTo = useCallback((left: number, smooth = false) => {
+    scrollerRef.current?.scrollTo({ left, behavior: smooth ? "smooth" : "auto" });
+  }, []);
+
+  /** One column plus the gap, so an arrow press lands on a column boundary. */
+  const stepBy = useCallback((direction: 1 | -1) => {
+    const scroller = scrollerRef.current;
+    const first = contentRef.current?.firstElementChild as HTMLElement | null;
+    if (!scroller) return;
+    const step = (first?.offsetWidth ?? 272) + 12;
+    scrollTo(scroller.scrollLeft + direction * step, true);
+  }, [scrollTo]);
+
+  const maxLeft = Math.max(0, metrics.total - metrics.width);
+  // A pixel of slack: sub-pixel layout means scrollLeft rarely hits maxLeft exactly.
+  return {
+    scrollerRef,
+    contentRef,
+    metrics,
+    measure,
+    scrollTo,
+    stepBy,
+    maxLeft,
+    canScrollLeft: metrics.left > 1,
+    canScrollRight: metrics.left < maxLeft - 1,
+  };
+}
+
+function BoardArrow({
+  side,
+  onClick,
+}: {
+  side: "left" | "right";
+  onClick: () => void;
+}) {
+  const Icon = side === "left" ? ChevronLeft : ChevronRight;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={side === "left" ? "Scroll board left" : "Scroll board right"}
+      className={`notion-floating absolute top-1/2 z-20 hidden size-7 -translate-y-1/2 place-items-center rounded-full bg-card text-muted-foreground transition-colors hover:text-foreground sm:grid ${
+        side === "left" ? "left-1" : "right-1"
+      }`}
+    >
+      <Icon className="size-4" />
+    </button>
+  );
+}
+
+/**
+ * The board's own scrollbar, drawn where you'd actually look for it. It replaces
+ * the native one (hidden by `.board-scroll`) rather than sitting next to it, so
+ * it has to stay draggable — click or drag anywhere on the track to jump.
+ */
+function ScrollRail({
+  metrics,
+  maxLeft,
+  onSeek,
+}: {
+  metrics: ScrollMetrics;
+  maxLeft: number;
+  onSeek: (left: number) => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  // Nothing to guide when the whole board already fits.
+  if (maxLeft <= 1) return null;
+
+  // Floored so a very wide board still leaves something big enough to grab.
+  const thumbPercent = Math.max((metrics.width / metrics.total) * 100, 8);
+  const progress = metrics.left / maxLeft;
+
+  function seek(clientX: number) {
+    const track = trackRef.current;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const thumbWidth = (thumbPercent / 100) * rect.width;
+    const travel = rect.width - thumbWidth;
+    if (travel <= 0) return;
+    // Centre the thumb on the pointer, so the grab point doesn't jump.
+    const ratio = (clientX - rect.left - thumbWidth / 2) / travel;
+    onSeek(Math.min(Math.max(ratio, 0), 1) * maxLeft);
+  }
+
+  return (
+    <div
+      ref={trackRef}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        seek(e.clientX);
+      }}
+      onPointerMove={(e) => {
+        if (e.currentTarget.hasPointerCapture(e.pointerId)) seek(e.clientX);
+      }}
+      className="group/rail relative mx-0.5 h-3 cursor-pointer touch-none select-none"
+    >
+      <div className="absolute inset-x-0 top-1 h-1 rounded-full bg-border" />
+      <div
+        className="absolute top-1 h-1 rounded-full bg-muted-foreground/40 transition-colors group-hover/rail:bg-muted-foreground/70"
+        style={{
+          width: `${thumbPercent}%`,
+          // Percentage of the *track*, so it never overruns the right end.
+          left: `${progress * (100 - thumbPercent)}%`,
+        }}
+      />
     </div>
   );
 }
@@ -522,6 +697,18 @@ export function KanbanView({
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) ?? null : null;
 
+  const {
+    scrollerRef,
+    contentRef,
+    metrics,
+    measure,
+    scrollTo,
+    stepBy,
+    maxLeft,
+    canScrollLeft,
+    canScrollRight,
+  } = useBoardScroll();
+
   return (
     <DndContext
       sensors={sensors}
@@ -529,24 +716,57 @@ export function KanbanView({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex items-start gap-3 overflow-x-auto pb-4">
-        {columns.map((column) => (
-          <StatusColumn
-            key={column.statusKey}
-            statusKey={column.statusKey}
-            label={column.label}
-            color={column.color}
-            sections={column.sections}
-            count={column.count}
-            commentCounts={commentCounts}
-            onOpen={onOpenTask}
-            drafts={draftsFor(column.statusKey)}
-            onDraftChange={(categoryKey, value) =>
-              setDraft(column.statusKey, categoryKey, value)
-            }
-            onAdd={(categoryKey) => handleAddTask(column.statusKey, categoryKey)}
+      <div className="flex flex-col gap-1.5">
+        <div className="relative">
+          {/* The fades are the guide's quietest part and do the most work: a
+              soft edge reads as "cut off, keep going", where a hard one reads
+              as the end of the board. Never in the way of a card. */}
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute inset-y-0 left-0 z-10 w-10 bg-gradient-to-r from-background to-transparent transition-opacity duration-200 ${
+              canScrollLeft ? "opacity-100" : "opacity-0"
+            }`}
           />
-        ))}
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute inset-y-0 right-0 z-10 w-10 bg-gradient-to-l from-background to-transparent transition-opacity duration-200 ${
+              canScrollRight ? "opacity-100" : "opacity-0"
+            }`}
+          />
+          {canScrollLeft && <BoardArrow side="left" onClick={() => stepBy(-1)} />}
+          {canScrollRight && <BoardArrow side="right" onClick={() => stepBy(1)} />}
+
+          {/* A fixed frame rather than a page that grows: each column scrolls
+              its own cards under a header that stays, which is what keeps a
+              long stage readable and the board itself one screen. */}
+          <div
+            ref={scrollerRef}
+            onScroll={measure}
+            className="board-scroll flex h-[calc(100dvh-15rem)] min-h-[26rem] overflow-x-auto overflow-y-hidden"
+          >
+            <div ref={contentRef} className="flex h-full items-stretch gap-3">
+              {columns.map((column) => (
+                <StatusColumn
+                  key={column.statusKey}
+                  statusKey={column.statusKey}
+                  label={column.label}
+                  color={column.color}
+                  sections={column.sections}
+                  count={column.count}
+                  commentCounts={commentCounts}
+                  onOpen={onOpenTask}
+                  drafts={draftsFor(column.statusKey)}
+                  onDraftChange={(categoryKey, value) =>
+                    setDraft(column.statusKey, categoryKey, value)
+                  }
+                  onAdd={(categoryKey) => handleAddTask(column.statusKey, categoryKey)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <ScrollRail metrics={metrics} maxLeft={maxLeft} onSeek={(left) => scrollTo(left)} />
       </div>
 
       <DragOverlay>
@@ -555,6 +775,9 @@ export function KanbanView({
             <TaskCard
               task={activeTask}
               commentCount={commentCounts[activeTask.id] ?? 0}
+              isDone={
+                statuses.find((s) => s.id === activeTask.status_id)?.label === "Done"
+              }
               onOpen={() => {}}
             />
           </div>

@@ -147,6 +147,15 @@
   h1, h2, h3, h4 {
     @apply font-heading font-semibold;
     letter-spacing: -0.011em;
+    /* Stops a two-line page title from leaving one orphan word on line two. */
+    text-wrap: balance;
+  }
+
+  /* One focus ring for the whole app, and only for keyboard users — several
+     surfaces were relying on the browser default, which differs per engine. */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
   ::-webkit-scrollbar {
@@ -165,6 +174,19 @@
   ::-webkit-scrollbar-thumb:hover {
     background-color: var(--muted-foreground);
     background-clip: padding-box;
+  }
+
+  /* Someone who has asked their system for less motion gets none of the
+     sidebar/tab/card animation — the layout is identical either way. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -255,5 +277,46 @@
       rgb(255 255 255 / 8%) 0 0 0 1px,
       rgb(0 0 0 / 40%) 0 3px 6px,
       rgb(0 0 0 / 50%) 0 9px 24px;
+  }
+
+  /* The Kanban board's horizontal scroller. The native scrollbar is hidden
+     because the board draws its own (`ScrollRail`) in a place you'd actually
+     look — directly under the columns — and two scrollbars for one axis is
+     worse than either alone. `overscroll-behavior-x` is the important half:
+     without it, swiping the board past its last column triggers the browser's
+     back gesture and leaves the project entirely. */
+  .board-scroll {
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .board-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* For panels narrow enough that the 10px page scrollbar would eat their
+     padding — a board column, a drawer sub-panel. Invisible until pointed at. */
+  .thin-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .thin-scroll:hover,
+  .thin-scroll:focus-within {
+    scrollbar-color: var(--border) transparent;
+  }
+  .thin-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .thin-scroll::-webkit-scrollbar-thumb {
+    background-color: transparent;
+    border: 0;
+    border-radius: 999px;
+  }
+  .thin-scroll:hover::-webkit-scrollbar-thumb,
+  .thin-scroll:focus-within::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+  }
+  .thin-scroll:hover::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
   }
 }
